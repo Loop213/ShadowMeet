@@ -1,0 +1,19 @@
+{
+  "name": "anonymous-dating-platform",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client",
+    "server": "npm run dev -w server",
+    "client": "npm run dev -w client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
+
