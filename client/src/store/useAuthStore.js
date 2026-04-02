@@ -93,7 +93,16 @@ export const useAuthStore = create((set, get) => ({
       throw new Error("No refresh token");
     }
 
-    const { data } = await api.post("/auth/refresh", { refreshToken });
+    let data;
+    try {
+      ({ data } = await api.post("/auth/refresh", { refreshToken }));
+    } catch (error) {
+      if (error?.response?.status !== 404) {
+        throw error;
+      }
+      ({ data } = await api.post("/auth/refresh-token", { refreshToken }));
+    }
+
     localStorage.setItem("dating_token", data.token);
     localStorage.setItem("dating_refresh_token", data.refreshToken);
     set({ token: data.token, refreshToken: data.refreshToken, user: data.user });

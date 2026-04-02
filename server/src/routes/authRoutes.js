@@ -17,6 +17,7 @@ router.post("/register", register);
 router.post("/login", login);
 router.post("/guest", guestLogin);
 router.post("/refresh", refreshSession);
+router.post("/refresh-token", refreshSession);
 router.post("/logout", logoutSession);
 router.post("/request-otp", requestOtp);
 router.post("/verify-otp", verifyOtpLogin);
