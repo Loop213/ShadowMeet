@@ -2,7 +2,9 @@ import {
   acceptIncomingCall as acceptIncomingCallService,
   applyAnswer as applyAnswerService,
   applyIceCandidate as applyIceCandidateService,
+  applyReconnectAnswer as applyReconnectAnswerService,
   endCall as endCallService,
+  handleReconnectOffer as handleReconnectOfferService,
   startOutgoingCall as startOutgoingCallService,
 } from "../services/webrtc";
 import { useAuthStore } from "../store/useAuthStore";
@@ -22,6 +24,11 @@ export const useWebRTC = () => {
 
   const applyIceCandidate = async (candidate) => applyIceCandidateService(candidate);
 
+  const handleReconnectOffer = async ({ senderId, offer }) =>
+    handleReconnectOfferService({ token, senderId, offer });
+
+  const applyReconnectAnswer = async (answer) => applyReconnectAnswerService(answer);
+
   const endCall = () => endCallService(token);
 
   return {
@@ -29,6 +36,8 @@ export const useWebRTC = () => {
     acceptIncomingCall,
     applyAnswer,
     applyIceCandidate,
+    handleReconnectOffer,
+    applyReconnectAnswer,
     endCall,
   };
 };

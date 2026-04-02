@@ -50,6 +50,15 @@ function Composer() {
     emitMessage({ content: url, messageType: "image" });
   };
 
+  const handleCallStart = async (type) => {
+    if (!selectedChat.peer?._id) return;
+    try {
+      await startOutgoingCall({ receiverId: selectedChat.peer._id, type });
+    } catch {
+      // Call notices are managed inside the WebRTC service.
+    }
+  };
+
   return (
     <div className="relative border-t border-line pt-4">
       {showGifPicker && (
@@ -102,18 +111,14 @@ function Composer() {
             <>
               <button
                 type="button"
-                onClick={() =>
-                  startOutgoingCall({ receiverId: selectedChat.peer._id, type: "voice" })
-                }
+                onClick={() => handleCallStart("voice")}
                 className="rounded-2xl bg-slate-800 p-2 text-slate-300"
               >
                 <Mic className="h-4 w-4" />
               </button>
               <button
                 type="button"
-                onClick={() =>
-                  startOutgoingCall({ receiverId: selectedChat.peer._id, type: "video" })
-                }
+                onClick={() => handleCallStart("video")}
                 className="rounded-2xl bg-slate-800 p-2 text-slate-300"
               >
                 <Video className="h-4 w-4" />

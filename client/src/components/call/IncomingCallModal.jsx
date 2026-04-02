@@ -10,6 +10,7 @@ import { useWebRTC } from "../../hooks/useWebRTC";
 function IncomingCallModal() {
   const incomingCall = useCallStore((state) => state.incomingCall);
   const clearCall = useCallStore((state) => state.clearCall);
+  const setCallNotice = useCallStore((state) => state.setCallNotice);
   const token = useAuthStore((state) => state.token);
   const { acceptIncomingCall } = useWebRTC();
 
@@ -72,17 +73,26 @@ function IncomingCallModal() {
           <h2 className="mt-3 text-3xl font-bold text-white">{incomingCall.caller.randomUsername}</h2>
           <p className="mt-2 text-sm text-slate-400">Anonymous call request waiting for your response.</p>
           <div className="mt-6 flex gap-3">
-            <Button className="flex-1 shadow-pulse" onClick={() => acceptIncomingCall(incomingCall)}>
+            <Button
+              className="flex-1 shadow-pulse"
+              onClick={async () => {
+                try {
+                  await acceptIncomingCall(incomingCall);
+                } catch {
+                  setCallNotice({
+                    tone: "rose",
+                    title: "Unable to accept call",
+                    message: "Check camera and microphone permissions, then retry.",
+                  });
+                }
+              }}
+            >
               Accept
             </Button>
             <button
               type="button"
               onClick={() => {
                 getSocket(token).emit("reject_call", {
-                  callId: incomingCall.callId,
-                  callerId: incomingCall.caller._id,
-                });
-                getSocket(token).emit("reject-call", {
                   callId: incomingCall.callId,
                   callerId: incomingCall.caller._id,
                 });

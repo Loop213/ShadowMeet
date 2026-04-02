@@ -328,30 +328,59 @@ export const initializeSocket = (httpServer, services = {}) => {
       });
     });
 
-    socket.on("call_user", async ({ receiverId, type, offer }) => {
-      if (!activeConnections.has(`${receiverId}`)) {
-        io.to(`user:${userId}`).emit("call_unavailable", {
-          receiverId,
-          message: "This user is offline or unavailable right now.",
-        });
+    const emitUnavailable = (receiverId, message) => {
+      io.to(`user:${userId}`).emit("call_unavailable", {
+        receiverId,
+        message,
+      });
+    };
+
+    const handleCallUser = async ({ receiverId, type = "video", offer } = {}) => {
+      const receiver = `${receiverId || ""}`.trim();
+      const callType = type === "voice" ? "voice" : "video";
+
+      if (!receiver || receiver === userId || !offer) {
+        emitUnavailable(receiver, "Unable to start call with this user.");
+        return;
+      }
+
+      const receiverUser = await User.findById(receiver).select("isBanned blockedUserIds");
+      if (!receiverUser || receiverUser.isBanned) {
+        emitUnavailable(receiver, "User not found.");
+        return;
+      }
+
+      const receiverBlockedCaller = (receiverUser.blockedUserIds || []).some(
+        (blockedUserId) => `${blockedUserId}` === userId
+      );
+      const callerBlockedReceiver = (socket.user.blockedUserIds || []).some(
+        (blockedUserId) => `${blockedUserId}` === receiver
+      );
+      if (receiverBlockedCaller || callerBlockedReceiver) {
+        emitUnavailable(receiver, "You cannot call this user.");
+        return;
+      }
+
+      if (!activeConnections.has(receiver)) {
+        emitUnavailable(receiver, "This user is offline or unavailable right now.");
         return;
       }
 
       await User.findByIdAndUpdate(userId, { lastActiveAt: new Date(), lastSeen: new Date() });
       const call = await Call.create({
         callerId: userId,
-        receiverId,
-        type,
+        receiverId: receiver,
+        type: callType,
         status: "ringing",
       });
 
       io.to(`user:${userId}`).emit("call_outgoing", {
         callId: call._id,
-        receiverId,
-        type,
+        receiverId: receiver,
+        type: callType,
       });
 
-      io.to(`user:${receiverId}`).emit("incoming_call", {
+      io.to(`user:${receiver}`).emit("incoming_call", {
         callId: call._id,
         caller: {
           _id: userId,
@@ -359,10 +388,10 @@ export const initializeSocket = (httpServer, services = {}) => {
           avatarUrl: socket.user.avatarUrl,
           anonymousAvatar: socket.user.anonymousAvatar,
         },
-        type,
+        type: callType,
         offer,
       });
-      io.to(`user:${receiverId}`).emit("incoming-call", {
+      io.to(`user:${receiver}`).emit("incoming-call", {
         callId: call._id,
         from: {
           _id: userId,
@@ -374,7 +403,7 @@ export const initializeSocket = (httpServer, services = {}) => {
           avatarUrl: socket.user.avatarUrl,
           anonymousAvatar: socket.user.anonymousAvatar,
         },
-        type,
+        type: callType,
         offer,
       });
 
@@ -386,7 +415,7 @@ export const initializeSocket = (httpServer, services = {}) => {
           callId: call._id,
           message: "The other user did not answer.",
         });
-        io.to(`user:${receiverId}`).emit("call_timeout", {
+        io.to(`user:${receiver}`).emit("call_timeout", {
           callId: call._id,
           message: "Missed call.",
         });
@@ -394,21 +423,30 @@ export const initializeSocket = (httpServer, services = {}) => {
       }, 30000);
 
       pendingCallTimeouts.set(`${call._id}`, timeoutId);
-    });
+    };
 
-    socket.on("accept_call", async ({ callId, callerId, answer }) => {
+    const handleAcceptCall = async ({ callId, callerId, answer } = {}) => {
+      if (!callId || !callerId || !answer) return;
       clearPendingCallTimeout(callId);
       await Call.findByIdAndUpdate(callId, { status: "accepted", startedAt: new Date() });
       io.to(`user:${callerId}`).emit("accept_call", { callId, answer });
       io.to(`user:${callerId}`).emit("accept-call", { callId, answer });
-    });
+    };
 
-    socket.on("reject_call", async ({ callId, callerId }) => {
+    const handleRejectCall = async ({ callId, callerId } = {}) => {
+      if (!callId || !callerId) return;
       clearPendingCallTimeout(callId);
       await Call.findByIdAndUpdate(callId, { status: "rejected", endedAt: new Date() });
       io.to(`user:${callerId}`).emit("reject_call", { callId });
       io.to(`user:${callerId}`).emit("reject-call", { callId });
-    });
+    };
+
+    socket.on("call_user", handleCallUser);
+    socket.on("call-user", handleCallUser);
+    socket.on("accept_call", handleAcceptCall);
+    socket.on("accept-call", handleAcceptCall);
+    socket.on("reject_call", handleRejectCall);
+    socket.on("reject-call", handleRejectCall);
 
     socket.on("offer", ({ receiverId, offer }) => {
       io.to(`user:${receiverId}`).emit("offer", { senderId: userId, offer });
@@ -418,19 +456,62 @@ export const initializeSocket = (httpServer, services = {}) => {
       io.to(`user:${receiverId}`).emit("answer", { senderId: userId, answer });
     });
 
-    socket.on("webrtc_ice_candidate", ({ receiverId, candidate }) => {
+    const forwardIceCandidate = ({ receiverId, candidate } = {}) => {
+      if (!receiverId || !candidate) return;
       io.to(`user:${receiverId}`).emit("webrtc_ice_candidate", { senderId: userId, candidate });
-    });
-
-    socket.on("ice_candidate", ({ receiverId, candidate }) => {
       io.to(`user:${receiverId}`).emit("ice_candidate", { senderId: userId, candidate });
+      io.to(`user:${receiverId}`).emit("ice-candidate", { senderId: userId, candidate });
+    };
+
+    socket.on("webrtc_ice_candidate", forwardIceCandidate);
+    socket.on("ice_candidate", forwardIceCandidate);
+    socket.on("ice-candidate", forwardIceCandidate);
+
+    socket.on("call_reconnect_offer", ({ receiverId, offer, reason, attempt } = {}) => {
+      if (!receiverId || !offer) return;
+      io.to(`user:${receiverId}`).emit("call_reconnect_offer", {
+        senderId: userId,
+        offer,
+        reason,
+        attempt,
+      });
+    });
+    socket.on("call-reconnect-offer", ({ receiverId, offer, reason, attempt } = {}) => {
+      if (!receiverId || !offer) return;
+      io.to(`user:${receiverId}`).emit("call_reconnect_offer", {
+        senderId: userId,
+        offer,
+        reason,
+        attempt,
+      });
     });
 
-    socket.on("end_call", async ({ callId, receiverId }) => {
-      clearPendingCallTimeout(callId);
-      await Call.findByIdAndUpdate(callId, { status: "ended", endedAt: new Date() });
-      io.to(`user:${receiverId}`).emit("end_call", { callId });
+    socket.on("call_reconnect_answer", ({ receiverId, answer } = {}) => {
+      if (!receiverId || !answer) return;
+      io.to(`user:${receiverId}`).emit("call_reconnect_answer", {
+        senderId: userId,
+        answer,
+      });
     });
+    socket.on("call-reconnect-answer", ({ receiverId, answer } = {}) => {
+      if (!receiverId || !answer) return;
+      io.to(`user:${receiverId}`).emit("call_reconnect_answer", {
+        senderId: userId,
+        answer,
+      });
+    });
+
+    const handleEndCall = async ({ callId, receiverId } = {}) => {
+      if (!receiverId) return;
+      clearPendingCallTimeout(callId);
+      if (callId) {
+        await Call.findByIdAndUpdate(callId, { status: "ended", endedAt: new Date() });
+      }
+      io.to(`user:${receiverId}`).emit("end_call", { callId });
+    };
+
+    socket.on("end_call", handleEndCall);
+    socket.on("end-call", handleEndCall);
 
     socket.on("disconnect", async () => {
       matchmakingService.removeFromQueue(userId);

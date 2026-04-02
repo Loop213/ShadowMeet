@@ -23,7 +23,12 @@ export const useSocketEvents = () => {
   const startCallSession = useCallStore((state) => state.startCallSession);
   const setCallNotice = useCallStore((state) => state.setCallNotice);
   const clearCall = useCallStore((state) => state.clearCall);
-  const { applyAnswer, applyIceCandidate } = useWebRTC();
+  const {
+    applyAnswer,
+    applyIceCandidate,
+    handleReconnectOffer,
+    applyReconnectAnswer,
+  } = useWebRTC();
 
   useEffect(() => {
     if (!token) return undefined;
@@ -78,7 +83,14 @@ export const useSocketEvents = () => {
     socket.on("accept-call", async ({ answer }) => {
       await applyAnswer(answer);
     });
-    socket.on("reject_call", clearCall);
+    socket.on("reject_call", () => {
+      clearCall();
+      setCallNotice({
+        tone: "rose",
+        title: "Call declined",
+        message: "The other user rejected your call.",
+      });
+    });
     socket.on("reject-call", () => {
       clearCall();
       setCallNotice({
@@ -93,6 +105,31 @@ export const useSocketEvents = () => {
     });
     socket.on("ice_candidate", async ({ candidate }) => {
       await applyIceCandidate(candidate);
+    });
+    socket.on("ice-candidate", async ({ candidate }) => {
+      await applyIceCandidate(candidate);
+    });
+    socket.on("call_reconnect_offer", async ({ senderId, offer }) => {
+      try {
+        await handleReconnectOffer({ senderId, offer });
+      } catch {
+        setCallNotice({
+          tone: "amber",
+          title: "Reconnecting call",
+          message: "Trying to recover call quality on this network.",
+        });
+      }
+    });
+    socket.on("call_reconnect_answer", async ({ answer }) => {
+      try {
+        await applyReconnectAnswer(answer);
+      } catch {
+        setCallNotice({
+          tone: "amber",
+          title: "Connection recovery delayed",
+          message: "Call recovery is taking longer than expected.",
+        });
+      }
     });
 
     return () => {
@@ -112,11 +149,14 @@ export const useSocketEvents = () => {
       socket.off("call_timeout");
       socket.off("accept_call");
       socket.off("accept-call");
-      socket.off("reject_call", clearCall);
+      socket.off("reject_call");
       socket.off("reject-call");
       socket.off("end_call", clearCall);
       socket.off("webrtc_ice_candidate");
       socket.off("ice_candidate");
+      socket.off("ice-candidate");
+      socket.off("call_reconnect_offer");
+      socket.off("call_reconnect_answer");
     };
   }, [
     token,
@@ -137,5 +177,7 @@ export const useSocketEvents = () => {
     clearCall,
     applyAnswer,
     applyIceCandidate,
+    handleReconnectOffer,
+    applyReconnectAnswer,
   ]);
 };

@@ -10,6 +10,7 @@ import SettingsPage from "./pages/SettingsPage";
 import ProtectedRoute from "./components/layout/ProtectedRoute";
 import IncomingCallModal from "./components/call/IncomingCallModal";
 import CallPanel from "./components/call/CallPanel";
+import CallNotice from "./components/call/CallNotice";
 import { useAuthStore } from "./store/useAuthStore";
 import { useThemeStore } from "./store/useThemeStore";
 import { useSocketEvents } from "./hooks/useSocketEvents";
@@ -74,6 +75,7 @@ function App() {
       </Routes>
       <IncomingCallModal />
       <CallPanel />
+      <CallNotice />
     </>
   );
 }

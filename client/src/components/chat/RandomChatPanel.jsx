@@ -189,15 +189,28 @@ function RandomChatPanel() {
     setVideoEnabled(nextState);
   };
 
+  const handleCallStart = async (type) => {
+    if (!partner?._id) return;
+    try {
+      await startOutgoingCall({ receiverId: partner._id, type });
+    } catch {
+      // Call notices are managed in WebRTC service.
+    }
+  };
+
   const connectionLabel = activeCall?.status === "connected"
     ? "Live now"
-    : activeCall?.status === "calling"
+    : activeCall?.status === "calling" || activeCall?.status === "connecting"
       ? "Connecting..."
-      : activeSession
-        ? "Matched"
-        : queueStatus === "searching"
-          ? "Searching..."
-          : "Idle";
+      : activeCall?.status === "reconnecting"
+        ? "Reconnecting..."
+        : activeCall?.status === "failed"
+          ? "Connection failed"
+          : activeSession
+            ? "Matched"
+            : queueStatus === "searching"
+              ? "Searching..."
+              : "Idle";
 
   return (
     <motion.section
@@ -534,14 +547,14 @@ function RandomChatPanel() {
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => startOutgoingCall({ receiverId: partner._id, type: "voice" })}
+                      onClick={() => handleCallStart("voice")}
                       className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-medium text-white"
                     >
                       Voice Call
                     </button>
                     <button
                       type="button"
-                      onClick={() => startOutgoingCall({ receiverId: partner._id, type: "video" })}
+                      onClick={() => handleCallStart("video")}
                       className="rounded-2xl bg-gradient-to-r from-pink-500 to-fuchsia-500 px-4 py-3 text-sm font-semibold text-white"
                     >
                       Start Video
