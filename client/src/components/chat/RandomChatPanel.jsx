@@ -98,6 +98,7 @@ function RandomChatPanel() {
   const socket = getSocket(token);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const hasRemoteVideo = Boolean(remoteStream?.getVideoTracks?.().length);
 
   const interests = interestsInput
     .split(",")
@@ -107,10 +108,12 @@ function RandomChatPanel() {
   useEffect(() => {
     if (localVideoRef.current) {
       localVideoRef.current.srcObject = localStream || null;
+      localVideoRef.current.play?.().catch(() => {});
     }
 
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = remoteStream || null;
+      remoteVideoRef.current.play?.().catch(() => {});
     }
 
     setAudioEnabled(localStream?.getAudioTracks().some((track) => track.enabled) ?? true);
@@ -445,17 +448,19 @@ function RandomChatPanel() {
                 className="remote-video h-full min-h-[28rem] w-full object-cover"
               />
 
-              {!remoteStream || !activeCall ? (
+              {!hasRemoteVideo || !activeCall ? (
                 <div className="absolute inset-0 grid place-items-center bg-black/55 backdrop-blur-sm">
                   <div className="text-center">
                     <div className="mx-auto mb-4 h-24 w-24 rounded-full border border-pink-400/25 bg-pink-500/10">
                       <div className="pulse-ring mx-auto mt-2 h-20 w-20 rounded-full border border-pink-400/25" />
                     </div>
                     <p className="text-xl font-semibold text-white">
-                      {activeSession ? "Call controls are ready" : "Finding someone for you…"}
+                      {activeCall ? "Waiting for remote video…" : activeSession ? "Call controls are ready" : "Finding someone for you…"}
                     </p>
                     <p className="mt-2 max-w-sm text-sm text-slate-300">
-                      {activeSession
+                      {activeCall
+                        ? "The call is connected, but the other camera has not started sending video yet."
+                        : activeSession
                         ? "Start a voice or video call when you feel the vibe."
                         : "Your screen stays live while we look for a new match."}
                     </p>

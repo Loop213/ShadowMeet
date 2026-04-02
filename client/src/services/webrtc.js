@@ -22,12 +22,17 @@ const rtcConfig = {
 
 let peerConnection = null;
 
-const createPeer = (token, remotePeerId, remoteStream) => {
+const createPeer = (token, remotePeerId) => {
   const socket = getSocket(token);
   const peer = new RTCPeerConnection(rtcConfig);
 
   peer.ontrack = (event) => {
-    event.streams[0].getTracks().forEach((track) => remoteStream.addTrack(track));
+    const inboundStream = event.streams?.[0];
+    if (!inboundStream) return;
+
+    const remoteStream = new MediaStream(inboundStream.getTracks());
+    useCallStore.getState().setRemoteStream(remoteStream);
+    useCallStore.getState().setCallStatus("connected");
   };
 
   peer.onicecandidate = (event) => {
@@ -36,6 +41,15 @@ const createPeer = (token, remotePeerId, remoteStream) => {
         receiverId: remotePeerId,
         candidate: event.candidate,
       });
+    }
+  };
+
+  peer.onconnectionstatechange = () => {
+    const nextState = peer.connectionState;
+    if (nextState === "connected") {
+      useCallStore.getState().setCallStatus("connected");
+    } else if (nextState === "disconnected" || nextState === "failed" || nextState === "closed") {
+      useCallStore.getState().setCallStatus(nextState);
     }
   };
 
@@ -53,7 +67,7 @@ export const startOutgoingCall = async ({ token, receiverId, type }) => {
   const socket = getSocket(token);
   const localStream = await getMediaStream(type);
   const remoteStream = new MediaStream();
-  const peer = createPeer(token, receiverId, remoteStream);
+  const peer = createPeer(token, receiverId);
 
   localStream.getTracks().forEach((track) => peer.addTrack(track, localStream));
   const offer = await peer.createOffer();
@@ -68,7 +82,7 @@ export const acceptIncomingCall = async ({ token, incomingCall }) => {
   const socket = getSocket(token);
   const localStream = await getMediaStream(incomingCall.type);
   const remoteStream = new MediaStream();
-  const peer = createPeer(token, incomingCall.caller._id, remoteStream);
+  const peer = createPeer(token, incomingCall.caller._id);
 
   localStream.getTracks().forEach((track) => peer.addTrack(track, localStream));
   await peer.setRemoteDescription(new RTCSessionDescription(incomingCall.offer));
@@ -94,8 +108,7 @@ export const acceptIncomingCall = async ({ token, incomingCall }) => {
 export const applyAnswer = async (answer) => {
   if (peerConnection && answer) {
     await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-    const activeCall = useCallStore.getState().activeCall;
-    useCallStore.getState().startCallSession({ ...activeCall, status: "connected" });
+    useCallStore.getState().setCallStatus("connecting");
   }
 };
 

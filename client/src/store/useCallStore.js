@@ -8,6 +8,11 @@ export const useCallStore = create((set) => ({
   setIncomingCall: (incomingCall) => set({ incomingCall }),
   startCallSession: (activeCall) => set({ activeCall, incomingCall: null }),
   setStreams: ({ localStream, remoteStream }) => set({ localStream, remoteStream }),
+  setRemoteStream: (remoteStream) => set((state) => ({ ...state, remoteStream })),
+  setCallStatus: (status) =>
+    set((state) => ({
+      activeCall: state.activeCall ? { ...state.activeCall, status } : state.activeCall,
+    })),
   clearCall: () =>
     set({
       incomingCall: null,
@@ -16,4 +21,3 @@ export const useCallStore = create((set) => ({
       remoteStream: null,
     }),
 }));
-

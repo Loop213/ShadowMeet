@@ -14,9 +14,11 @@ function CallPanel() {
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
+      localVideoRef.current.play?.().catch(() => {});
     }
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
+      remoteVideoRef.current.play?.().catch(() => {});
     }
   }, [localStream, remoteStream]);
 
@@ -79,4 +81,3 @@ function CallPanel() {
 }
 
 export default CallPanel;
-
