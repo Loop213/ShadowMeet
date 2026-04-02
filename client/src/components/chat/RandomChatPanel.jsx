@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { Flag, Mic, SkipForward, UserRoundX, Video } from "lucide-react";
 import { getSocket } from "../../services/socket";
 import { useAuthStore } from "../../store/useAuthStore";
@@ -66,7 +67,11 @@ function RandomChatPanel() {
   };
 
   return (
-    <section className="glass-panel rounded-3xl p-5">
+    <motion.section
+      initial={{ opacity: 0, y: 24 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="glass-panel rounded-[2rem] p-5"
+    >
       <div className="flex flex-col gap-4 border-b border-line pb-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-teal-300">Random stranger mode</p>
@@ -85,27 +90,56 @@ function RandomChatPanel() {
         </div>
       </div>
 
-      <div className="mt-4 grid gap-4 xl:grid-cols-[22rem_1fr]">
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.5fr_1fr]">
         <div className="space-y-4">
-          <div className="rounded-3xl border border-line bg-slate-900/60 p-4">
-            <label className="mb-2 block text-sm text-slate-400">Chat mode</label>
-            <div className="grid grid-cols-3 gap-2">
-              {["text", "voice", "video"].map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setMode(value)}
-                  className={`rounded-2xl px-3 py-3 text-sm ${
-                    mode === value ? "bg-teal-500 text-slate-950" : "bg-slate-800 text-slate-300"
-                  }`}
-                >
-                  {value}
-                </button>
-              ))}
+          <div className="relative overflow-hidden rounded-[2rem] border border-line bg-slate-950/55 p-4">
+            <div className="absolute right-6 top-6 h-24 w-24 rounded-full bg-pink-500/20 blur-3xl" />
+            <div className="absolute bottom-4 left-4 h-24 w-24 rounded-full bg-fuchsia-500/15 blur-3xl" />
+            <div className="relative mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-pink-300">Video Room</p>
+                <p className="mt-2 text-xl font-semibold text-white">
+                  {partner ? "Connection looks promising" : "Waiting for someone special"}
+                </p>
+              </div>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                {activeSession ? "Connected" : queueStatus}
+              </span>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+              <div className="video-frame relative min-h-[23rem] overflow-hidden rounded-[2rem] border border-white/10 bg-slate-950">
+                <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 via-transparent to-fuchsia-500/10" />
+                <div className="absolute inset-0 grid place-items-center">
+                  <div className="pulse-ring absolute h-28 w-28 rounded-full border border-pink-400/25" />
+                  <p className="relative z-10 max-w-xs text-center text-sm text-slate-300">
+                    {partner
+                      ? `${partner.randomUsername} is in the room. Start the vibe with video or voice.`
+                      : "Finding someone for you… don’t miss your match."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="video-frame grid min-h-[11rem] place-items-center rounded-[1.75rem] border border-white/10 bg-slate-950 text-sm text-slate-400">
+                  Your preview
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <button type="button" className="rounded-2xl bg-white/5 px-4 py-3 text-slate-100">
+                    <Mic className="mx-auto h-4 w-4" />
+                  </button>
+                  <button type="button" className="rounded-2xl bg-white/5 px-4 py-3 text-slate-100">
+                    <Video className="mx-auto h-4 w-4" />
+                  </button>
+                  <button type="button" onClick={handleSkip} className="rounded-2xl bg-rose-500/90 px-4 py-3 text-white">
+                    <SkipForward className="mx-auto h-4 w-4" />
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="rounded-3xl border border-line bg-slate-900/60 p-4">
+          <div className="rounded-[2rem] border border-line bg-slate-900/60 p-4">
             <label className="mb-2 block text-sm text-slate-400">Interests</label>
             <input
               value={interestsInput}
@@ -113,38 +147,111 @@ function RandomChatPanel() {
               className="w-full rounded-2xl border border-line bg-slate-950 px-4 py-3 text-sm outline-none"
               placeholder="music, coding, movies"
             />
-            <label className="mb-2 mt-4 block text-sm text-slate-400">Filter</label>
-            <select
-              value={genderFilter}
-              onChange={(event) => setGenderFilter(event.target.value)}
-              className="w-full rounded-2xl border border-line bg-slate-950 px-4 py-3 text-sm outline-none"
-            >
-              <option value="any">Anyone</option>
-              <option value="female">Female</option>
-              <option value="male">Male</option>
-              <option value="nonbinary">Non-binary</option>
-            </select>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm text-slate-400">Mode</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {["text", "voice", "video"].map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setMode(value)}
+                      className={`rounded-2xl px-3 py-3 text-sm ${
+                        mode === value ? "bg-gradient-to-r from-pink-500 to-fuchsia-500 text-white" : "bg-slate-800 text-slate-300"
+                      }`}
+                    >
+                      {value}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm text-slate-400">Gender Filter</label>
+                <select
+                  value={genderFilter}
+                  onChange={(event) => setGenderFilter(event.target.value)}
+                  className="w-full rounded-2xl border border-line bg-slate-950 px-4 py-3 text-sm outline-none"
+                >
+                  <option value="any">Anyone</option>
+                  <option value="female">Female</option>
+                  <option value="male">Male</option>
+                  <option value="nonbinary">Non-binary</option>
+                </select>
+              </div>
+            </div>
             <button
               type="button"
               onClick={handleStart}
-              className="mt-4 w-full rounded-2xl bg-teal-500 px-4 py-3 font-semibold text-slate-950"
+              className="mt-4 w-full rounded-2xl bg-gradient-to-r from-pink-500 via-fuchsia-500 to-rose-500 px-4 py-3 font-semibold text-white shadow-pulse"
             >
-              {queueStatus === "searching" ? "Searching..." : "Start Chat"}
+              {queueStatus === "searching" ? "Finding someone for you…" : "Start Chat ❤️"}
             </button>
-            {activeSession && (
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-3xl border border-line bg-slate-900/60 p-4">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-pink-300">Live chat</p>
+                <p className="mt-2 text-xl font-semibold text-white">
+                  {partner ? `Say hi to ${partner.randomUsername}` : "Someone is waiting for you…"}
+                </p>
+              </div>
+              {activeSession && (
+                <button
+                  type="button"
+                  onClick={handleSkip}
+                  className="rounded-full bg-gradient-to-r from-orange-500 to-rose-500 px-4 py-2 text-xs font-semibold text-white"
+                >
+                  Next User
+                </button>
+              )}
+            </div>
+
+            <div className="scrollbar-thin mb-4 max-h-[30rem] min-h-[24rem] space-y-3 overflow-y-auto pr-1">
+              {sessionMessages.map((message) => (
+                <motion.div
+                  key={message._id}
+                  initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  className="rounded-2xl bg-slate-950/70 px-4 py-3"
+                >
+                  <p className="text-xs font-semibold text-slate-400">
+                    {message.senderId?.randomUsername || "Stranger"}
+                  </p>
+                  <p className="mt-1 text-sm text-white">{message.content}</p>
+                  <p className="mt-1 text-[11px] text-slate-500">{formatTime(message.createdAt)}</p>
+                </motion.div>
+              ))}
+              {strangerTyping && <p className="text-xs text-pink-300">User is typing…</p>}
+              {!sessionMessages.length && (
+                <div className="rounded-2xl border border-dashed border-line p-4 text-sm text-slate-400">
+                  Match found animation, ephemeral chat, and premium bubbles all begin once you connect.
+                </div>
+              )}
+            </div>
+
+            <form onSubmit={handleSend} className="flex gap-3">
+              <input
+                value={message}
+                onChange={(event) => emitTyping(event.target.value)}
+                disabled={!activeSession}
+                className="flex-1 rounded-2xl border border-line bg-slate-950 px-4 py-3 text-sm outline-none disabled:opacity-50"
+                placeholder={activeSession ? "Type your message…" : "Start a chat to unlock messaging"}
+              />
               <button
-                type="button"
-                onClick={handleSkip}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-slate-950"
+                type="submit"
+                disabled={!activeSession}
+                className="rounded-2xl bg-gradient-to-r from-pink-500 via-fuchsia-500 to-rose-500 px-5 py-3 font-semibold text-white disabled:opacity-50"
               >
-                <SkipForward className="h-4 w-4" />
-                Next Stranger
+                Send
               </button>
-            )}
+            </form>
           </div>
 
           {partner && (
-            <div className="rounded-3xl border border-line bg-slate-900/60 p-4">
+            <div className="rounded-[2rem] border border-line bg-slate-900/60 p-4">
               <div className="flex items-center gap-3">
                 <img
                   src={partner.anonymousAvatar}
@@ -197,56 +304,8 @@ function RandomChatPanel() {
             </div>
           )}
         </div>
-
-        <div className="flex min-h-[34rem] flex-col rounded-3xl border border-line bg-slate-900/55 p-4">
-          <div className="mb-4 grid flex-1 gap-4 md:grid-cols-2">
-            <div className="grid place-items-center rounded-3xl bg-slate-950">
-              <p className="text-sm text-slate-400">Your camera preview appears during calls</p>
-            </div>
-            <div className="grid place-items-center rounded-3xl bg-slate-950">
-              <p className="text-sm text-slate-400">
-                {partner ? "Stranger video area" : "Connect to a stranger to start"}
-              </p>
-            </div>
-          </div>
-
-          <div className="scrollbar-thin mb-4 max-h-64 flex-1 space-y-3 overflow-y-auto pr-1">
-            {sessionMessages.map((message) => (
-              <div key={message._id} className="rounded-2xl bg-slate-950/70 px-4 py-3">
-                <p className="text-xs font-semibold text-slate-400">
-                  {message.senderId?.randomUsername || "Stranger"}
-                </p>
-                <p className="mt-1 text-sm text-white">{message.content}</p>
-                <p className="mt-1 text-[11px] text-slate-500">{formatTime(message.createdAt)}</p>
-              </div>
-            ))}
-            {strangerTyping && <p className="text-xs text-slate-400">Stranger is typing...</p>}
-            {!sessionMessages.length && (
-              <div className="rounded-2xl border border-dashed border-line p-4 text-sm text-slate-400">
-                Session chat is ephemeral and auto-deletes when the stranger leaves.
-              </div>
-            )}
-          </div>
-
-          <form onSubmit={handleSend} className="flex gap-3">
-            <input
-              value={message}
-              onChange={(event) => emitTyping(event.target.value)}
-              disabled={!activeSession}
-              className="flex-1 rounded-2xl border border-line bg-slate-950 px-4 py-3 text-sm outline-none disabled:opacity-50"
-              placeholder={activeSession ? "Say hi to your stranger..." : "Start a chat to unlock messaging"}
-            />
-            <button
-              type="submit"
-              disabled={!activeSession}
-              className="rounded-2xl bg-teal-500 px-5 py-3 font-semibold text-slate-950 disabled:opacity-50"
-            >
-              Send
-            </button>
-          </form>
-        </div>
       </div>
-    </section>
+    </motion.section>
   );
 }
 

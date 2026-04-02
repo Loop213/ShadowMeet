@@ -2,7 +2,7 @@ import { StatusCodes } from "http-status-codes";
 import { User } from "../models/User.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { ApiError } from "../utils/ApiError.js";
-import { signToken } from "../utils/token.js";
+import { signRefreshToken, signToken, verifyRefreshToken } from "../utils/token.js";
 import { buildCandidateUsername } from "../utils/generateUsername.js";
 import { generateOtp, hashOtp } from "../utils/otp.js";
 import { sendOtpEmail } from "../services/mailerService.js";
@@ -36,9 +36,17 @@ const generateUniqueUsername = async () => {
   throw new ApiError(StatusCodes.INTERNAL_SERVER_ERROR, "Unable to generate username");
 };
 
-const issueAuthResponse = (user, res) => {
+const buildAuthPayload = (user) => {
   const token = signToken({ userId: user._id, role: user.role });
-  res.json({ token, user: sanitizeUser(user) });
+  const refreshToken = signRefreshToken({ userId: user._id, role: user.role });
+  return { token, refreshToken, user: sanitizeUser(user) };
+};
+
+const issueAuthResponse = async (user, res) => {
+  const payload = buildAuthPayload(user);
+  user.refreshToken = payload.refreshToken;
+  await user.save();
+  res.json(payload);
 };
 
 export const register = asyncHandler(async (req, res) => {
@@ -65,7 +73,7 @@ export const register = asyncHandler(async (req, res) => {
     lastActiveAt: new Date(),
   });
 
-  issueAuthResponse(user, res.status(StatusCodes.CREATED));
+  await issueAuthResponse(user, res.status(StatusCodes.CREATED));
 });
 
 export const login = asyncHandler(async (req, res) => {
@@ -85,7 +93,7 @@ export const login = asyncHandler(async (req, res) => {
   user.lastActiveAt = new Date();
   await user.save();
 
-  issueAuthResponse(user, res);
+  await issueAuthResponse(user, res);
 });
 
 export const requestOtp = asyncHandler(async (req, res) => {
@@ -136,7 +144,7 @@ export const verifyOtpLogin = asyncHandler(async (req, res) => {
   user.lastActiveAt = new Date();
   await user.save();
 
-  issueAuthResponse(user, res);
+  await issueAuthResponse(user, res);
 });
 
 export const me = asyncHandler(async (req, res) => {
@@ -158,5 +166,46 @@ export const guestLogin = asyncHandler(async (req, res) => {
     lastActiveAt: new Date(),
   });
 
-  issueAuthResponse(user, res.status(StatusCodes.CREATED));
+  await issueAuthResponse(user, res.status(StatusCodes.CREATED));
+});
+
+export const refreshSession = asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    throw new ApiError(StatusCodes.BAD_REQUEST, "Refresh token is required");
+  }
+
+  let decoded;
+  try {
+    decoded = verifyRefreshToken(refreshToken);
+  } catch {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "Invalid refresh token");
+  }
+
+  const user = await User.findById(decoded.userId);
+  if (!user || user.refreshToken !== refreshToken) {
+    throw new ApiError(StatusCodes.UNAUTHORIZED, "Refresh token no longer valid");
+  }
+
+  if (user.isBanned) {
+    throw new ApiError(StatusCodes.FORBIDDEN, "Account is banned");
+  }
+
+  user.lastSeen = new Date();
+  user.lastActiveAt = new Date();
+  await issueAuthResponse(user, res);
+});
+
+export const logoutSession = asyncHandler(async (req, res) => {
+  const { refreshToken } = req.body;
+  if (refreshToken) {
+    const user = await User.findOne({ refreshToken });
+    if (user) {
+      user.refreshToken = undefined;
+      await user.save();
+    }
+  }
+
+  res.json({ message: "Logged out" });
 });

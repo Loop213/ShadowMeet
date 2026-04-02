@@ -9,6 +9,8 @@ export const env = {
   mongoUri: process.env.MONGODB_URI || "mongodb://localhost:27017/dating-app",
   jwtSecret: process.env.JWT_SECRET || "development-secret",
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "7d",
+  refreshJwtSecret: process.env.REFRESH_JWT_SECRET || "development-refresh-secret",
+  refreshJwtExpiresIn: process.env.REFRESH_JWT_EXPIRES_IN || "30d",
   redisUrl: process.env.REDIS_URL || "",
   giphyApiKey: process.env.GIPHY_API_KEY || "",
   cloudinary: {
@@ -28,4 +30,3 @@ export const env = {
     password: process.env.ADMIN_PASSWORD || "ChangeMe123!",
   },
 };
-

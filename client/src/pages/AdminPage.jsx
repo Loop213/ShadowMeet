@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import AppShell from "../components/layout/AppShell";
 import AdminMetrics from "../components/admin/AdminMetrics";
 import AdminChatLogs from "../components/admin/AdminChatLogs";
@@ -41,7 +42,7 @@ function AdminPage() {
 
   return (
     <AppShell>
-      <div className="space-y-4">
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
         <div>
           <p className="text-xs uppercase tracking-[0.3em] text-orange-300">Admin console</p>
           <h2 className="mt-1 text-3xl font-semibold text-white">Privacy-governed oversight</h2>
@@ -53,7 +54,7 @@ function AdminPage() {
         <AdminUsersTable users={users} onToggleBan={handleToggleBan} />
         <AdminReports reports={reports} />
         <AdminChatLogs messages={chatLogs} />
-      </div>
+      </motion.div>
     </AppShell>
   );
 }

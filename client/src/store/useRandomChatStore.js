@@ -1,6 +1,11 @@
 import { create } from "zustand";
 import { api } from "../services/api";
 
+const storedSession =
+  typeof window !== "undefined" ? JSON.parse(localStorage.getItem("shadowmeet_active_session") || "null") : null;
+const storedPartner =
+  typeof window !== "undefined" ? JSON.parse(localStorage.getItem("shadowmeet_partner") || "null") : null;
+
 export const useRandomChatStore = create((set, get) => ({
   queueStatus: "idle",
   queueSize: 0,
@@ -8,8 +13,8 @@ export const useRandomChatStore = create((set, get) => ({
   mode: "video",
   interestsInput: "music, coding",
   genderFilter: "any",
-  activeSession: null,
-  partner: null,
+  activeSession: storedSession,
+  partner: storedPartner,
   sessionMessages: [],
   strangerTyping: false,
   matchHistory: [],
@@ -24,27 +29,37 @@ export const useRandomChatStore = create((set, get) => ({
   setOnlineCount: (onlineCount) => set({ onlineCount }),
   startSearching: () => set({ queueStatus: "searching", sessionMessages: [], activeSession: null, partner: null }),
   setMatch: ({ sessionId, partner, mode, matchedInterests, startedAt }) =>
-    set({
-      queueStatus: "matched",
-      activeSession: { sessionId, mode, matchedInterests, startedAt },
-      partner,
-      sessionMessages: [],
-      strangerTyping: false,
+    set(() => {
+      const activeSession = { sessionId, mode, matchedInterests, startedAt };
+      localStorage.setItem("shadowmeet_active_session", JSON.stringify(activeSession));
+      localStorage.setItem("shadowmeet_partner", JSON.stringify(partner));
+      return {
+        queueStatus: "matched",
+        activeSession,
+        partner,
+        sessionMessages: [],
+        strangerTyping: false,
+      };
     }),
   appendSessionMessage: (message) =>
     set((state) => ({ sessionMessages: [...state.sessionMessages, message] })),
   endSession: () =>
-    set({
-      queueStatus: "idle",
-      activeSession: null,
-      partner: null,
-      sessionMessages: [],
-      strangerTyping: false,
+    set(() => {
+      localStorage.removeItem("shadowmeet_active_session");
+      localStorage.removeItem("shadowmeet_partner");
+      return {
+        queueStatus: "idle",
+        activeSession: null,
+        partner: null,
+        sessionMessages: [],
+        strangerTyping: false,
+      };
     }),
   setStrangerTyping: (strangerTyping) => set({ strangerTyping }),
+  restoreSession: ({ sessionId, partner, mode, matchedInterests, startedAt }) =>
+    get().setMatch({ sessionId, partner, mode, matchedInterests, startedAt }),
   fetchMatchHistory: async () => {
     const { data } = await api.get("/sessions/history");
     set({ matchHistory: data.sessions });
   },
 }));
-

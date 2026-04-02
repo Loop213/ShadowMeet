@@ -1,28 +1,35 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useEffect } from "react";
+import HomePage from "./pages/HomePage";
 import AuthPage from "./pages/AuthPage";
 import DashboardPage from "./pages/DashboardPage";
 import AdminPage from "./pages/AdminPage";
+import ProfilePage from "./pages/ProfilePage";
+import SettingsPage from "./pages/SettingsPage";
 import ProtectedRoute from "./components/layout/ProtectedRoute";
 import IncomingCallModal from "./components/call/IncomingCallModal";
 import CallPanel from "./components/call/CallPanel";
 import { useAuthStore } from "./store/useAuthStore";
+import { useThemeStore } from "./store/useThemeStore";
 import { useSocketEvents } from "./hooks/useSocketEvents";
 
 function App() {
   const token = useAuthStore((state) => state.token);
   const bootstrap = useAuthStore((state) => state.bootstrap);
+  const initializeTheme = useThemeStore((state) => state.initializeTheme);
 
   useSocketEvents();
 
   useEffect(() => {
     bootstrap();
-  }, [bootstrap]);
+    initializeTheme();
+  }, [bootstrap, initializeTheme]);
 
   return (
     <>
       <Routes>
-        <Route path="/" element={token ? <Navigate to="/app" replace /> : <AuthPage />} />
+        <Route path="/" element={<HomePage />} />
+        <Route path="/auth" element={token ? <Navigate to="/app" replace /> : <AuthPage />} />
         <Route
           path="/app"
           element={
@@ -39,6 +46,22 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/settings"
+          element={
+            <ProtectedRoute>
+              <SettingsPage />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
       <IncomingCallModal />
       <CallPanel />
@@ -47,4 +70,3 @@ function App() {
 }
 
 export default App;
-

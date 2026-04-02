@@ -2,6 +2,7 @@ import { nanoid } from "nanoid";
 
 const waitingQueue = [];
 const activeSessions = new Map();
+const disconnectTimers = new Map();
 
 const normalizeInterests = (interests = []) =>
   interests.map((interest) => `${interest}`.trim().toLowerCase()).filter(Boolean);
@@ -71,6 +72,23 @@ export const createMatchmakingService = () => {
     activeSessions.set(`${userB}`, { sessionId, partnerId: `${userA}` });
   };
 
+  const scheduleDisconnect = (userId, handler, delayMs = 45000) => {
+    clearDisconnectTimer(userId);
+    const timer = setTimeout(() => {
+      disconnectTimers.delete(`${userId}`);
+      handler();
+    }, delayMs);
+    disconnectTimers.set(`${userId}`, timer);
+  };
+
+  const clearDisconnectTimer = (userId) => {
+    const timer = disconnectTimers.get(`${userId}`);
+    if (timer) {
+      clearTimeout(timer);
+      disconnectTimers.delete(`${userId}`);
+    }
+  };
+
   const clearSession = (userId) => {
     const active = activeSessions.get(`${userId}`);
     if (!active) return null;
@@ -90,6 +108,8 @@ export const createMatchmakingService = () => {
     getQueueSize,
     registerSession,
     removeFromQueue,
+    scheduleDisconnect,
+    clearDisconnectTimer,
     setBlockedUsers,
   };
 };

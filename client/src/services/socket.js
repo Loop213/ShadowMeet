@@ -9,6 +9,10 @@ export const getSocket = (token) => {
     socket = io(import.meta.env.VITE_SOCKET_URL || "http://localhost:5000", {
       autoConnect: true,
       auth: { token },
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
     });
   }
 
@@ -26,4 +30,3 @@ export const disconnectSocket = () => {
     socket = null;
   }
 };
-

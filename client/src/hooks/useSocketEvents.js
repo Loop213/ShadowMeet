@@ -14,6 +14,7 @@ export const useSocketEvents = () => {
   const setMessageStatus = useChatStore((state) => state.setMessageStatus);
   const setQueueState = useRandomChatStore((state) => state.setQueueState);
   const setMatch = useRandomChatStore((state) => state.setMatch);
+  const restoreSession = useRandomChatStore((state) => state.restoreSession);
   const appendSessionMessage = useRandomChatStore((state) => state.appendSessionMessage);
   const endRandomSession = useRandomChatStore((state) => state.endSession);
   const setStrangerTyping = useRandomChatStore((state) => state.setStrangerTyping);
@@ -42,6 +43,7 @@ export const useSocketEvents = () => {
       setOnlineCount(queueSize || 0);
     });
     socket.on("match_found", setMatch);
+    socket.on("session_restored", restoreSession);
     socket.on("session_message", appendSessionMessage);
     socket.on("disconnect_partner", endRandomSession);
     socket.on("message_status", ({ messageId, status, seenBy }) => {
@@ -66,6 +68,7 @@ export const useSocketEvents = () => {
       socket.off("presence:update", updatePresence);
       socket.off("queue_status");
       socket.off("match_found", setMatch);
+      socket.off("session_restored", restoreSession);
       socket.off("session_message", appendSessionMessage);
       socket.off("disconnect_partner", endRandomSession);
       socket.off("message_status");
@@ -83,6 +86,7 @@ export const useSocketEvents = () => {
     updatePresence,
     setQueueState,
     setMatch,
+    restoreSession,
     appendSessionMessage,
     endRandomSession,
     setStrangerTyping,

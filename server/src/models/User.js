@@ -73,6 +73,7 @@ const userSchema = new mongoose.Schema(
     lastIp: String,
     otpCodeHash: String,
     otpExpiresAt: Date,
+    refreshToken: String,
   },
   { timestamps: true }
 );

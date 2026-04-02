@@ -106,6 +106,7 @@ export const initializeSocket = (httpServer, services = {}) => {
   io.on("connection", async (socket) => {
     const userId = `${socket.user._id}`;
     matchmakingService.setBlockedUsers(userId, socket.user.blockedUserIds || []);
+    matchmakingService.clearDisconnectTimer(userId);
     bumpConnection(userId, 1);
     socket.join(GLOBAL_ROOM);
     socket.join(`user:${userId}`);
@@ -120,6 +121,16 @@ export const initializeSocket = (httpServer, services = {}) => {
     io.emit("queue_status", { status: "updated", queueSize: matchmakingService.getQueueSize() });
 
     socket.emit("session_ready", { userId, randomUsername: socket.user.randomUsername });
+    const restoredSession = matchmakingService.getActiveSessionForUser(userId);
+    if (restoredSession) {
+      const session = await ChatSession.findById(restoredSession.sessionId);
+      const partnerUser = await User.findById(restoredSession.partnerId).select(
+        "randomUsername anonymousAvatar interests gender avatarUrl"
+      );
+      if (session && partnerUser) {
+        socket.emit("session_restored", buildSessionPayload(session, userId, partnerUser));
+      }
+    }
 
     socket.on("find_partner", async ({ interests = [], mode = "text", genderFilter = "any" } = {}) => {
       const existing = matchmakingService.getActiveSessionForUser(userId);
@@ -363,14 +374,6 @@ export const initializeSocket = (httpServer, services = {}) => {
 
     socket.on("disconnect", async () => {
       matchmakingService.removeFromQueue(userId);
-      await endSession({
-        matchmakingService,
-        userId,
-        endedBy: socket.user._id,
-        reason: "disconnect",
-        io,
-      });
-
       const remainingConnections = bumpConnection(userId, -1);
       if (remainingConnections === 0) {
         await User.findByIdAndUpdate(userId, {
@@ -379,6 +382,17 @@ export const initializeSocket = (httpServer, services = {}) => {
           lastActiveAt: new Date(),
         });
         io.emit("presence:update", { userId, isOnline: false, lastSeen: new Date() });
+        if (matchmakingService.getActiveSessionForUser(userId)) {
+          matchmakingService.scheduleDisconnect(userId, async () => {
+            await endSession({
+              matchmakingService,
+              userId,
+              endedBy: socket.user._id,
+              reason: "disconnect",
+              io,
+            });
+          });
+        }
       }
 
       io.emit("queue_status", { status: "updated", queueSize: matchmakingService.getQueueSize() });
