@@ -88,6 +88,7 @@ function RandomChatPanel() {
   const activeCall = useCallStore((state) => state.activeCall);
   const localStream = useCallStore((state) => state.localStream);
   const remoteStream = useCallStore((state) => state.remoteStream);
+  const callDebug = useCallStore((state) => state.callDebug);
   const { startOutgoingCall, endCall } = useWebRTC();
   const [message, setMessage] = useState("");
   const [showGifPicker, setShowGifPicker] = useState(false);
@@ -564,6 +565,46 @@ function RandomChatPanel() {
               </div>
             </div>
           </div>
+
+          {(activeCall || callDebug.lastEvent !== "idle") ? (
+            <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/60 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs uppercase tracking-[0.3em] text-orange-300">Call diagnostics</p>
+                <span className="rounded-full border border-white/10 px-2.5 py-1 text-[11px] text-slate-300">
+                  {callDebug.lastEvent}
+                </span>
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                  Connection: <span className="font-semibold text-white">{callDebug.connectionState}</span>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                  ICE: <span className="font-semibold text-white">{callDebug.iceConnectionState}</span>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                  Signaling: <span className="font-semibold text-white">{callDebug.signalingState}</span>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                  Remote video tracks: <span className="font-semibold text-white">{callDebug.remoteVideoTracks}</span>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                  Remote audio tracks: <span className="font-semibold text-white">{callDebug.remoteAudioTracks}</span>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                  Pending ICE: <span className="font-semibold text-white">{callDebug.pendingCandidates}</span>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                  Local candidates: <span className="font-semibold text-white">{callDebug.localCandidates}</span>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                  Remote candidates: <span className="font-semibold text-white">{callDebug.remoteCandidates}</span>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300">
+                  TURN: <span className="font-semibold text-white">{callDebug.usingTurn ? "enabled" : "disabled"}</span>
+                </div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="grid gap-4 xl:grid-cols-[1fr_auto]">
             <div className="rounded-[2rem] border border-line bg-slate-900/60 p-4">

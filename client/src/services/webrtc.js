@@ -74,6 +74,17 @@ let pendingRemoteCandidates = [];
 let restartInFlight = false;
 let restartAttempts = 0;
 const maxRestartAttempts = 3;
+let localCandidateCount = 0;
+let remoteCandidateCount = 0;
+
+const usingTurn = rtcConfig.iceServers.some((server) => {
+  const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+  return urls.some((value) => String(value || "").startsWith("turn:") || String(value || "").startsWith("turns:"));
+});
+
+const setCallDebug = (patch) => {
+  useCallStore.getState().setCallDebug(patch);
+};
 
 const setCallNotice = ({ title, message, tone = "amber" }) => {
   useCallStore.getState().setCallNotice({ title, message, tone });
@@ -97,7 +108,15 @@ const resetPeerTransientState = () => {
   pendingRemoteCandidates = [];
   restartInFlight = false;
   restartAttempts = 0;
+  localCandidateCount = 0;
+  remoteCandidateCount = 0;
   clearReconnectTimer();
+  setCallDebug({
+    pendingCandidates: 0,
+    localCandidates: 0,
+    remoteCandidates: 0,
+    restartAttempts: 0,
+  });
 };
 
 const flushPendingRemoteCandidates = async () => {
@@ -111,6 +130,8 @@ const flushPendingRemoteCandidates = async () => {
       // Ignore stale candidates from previous descriptions.
     }
   }
+
+  setCallDebug({ pendingCandidates: pendingRemoteCandidates.length });
 };
 
 const applyRemoteDescription = async (description) => {
@@ -128,12 +149,17 @@ const closePeerConnection = () => {
   currentToken = null;
   currentRemotePeerId = null;
   resetPeerTransientState();
+  useCallStore.getState().resetCallDebug();
 };
 
 const scheduleIceRestart = (reason) => {
   if (!peerConnection || !currentRemotePeerId || !currentToken || restartInFlight) return;
   if (restartAttempts >= maxRestartAttempts) {
     useCallStore.getState().setCallStatus("failed");
+    setCallDebug({
+      lastEvent: "max-restart-attempts-reached",
+      restartAttempts,
+    });
     setCallNotice({
       tone: "rose",
       title: "Connection unstable",
@@ -144,6 +170,10 @@ const scheduleIceRestart = (reason) => {
 
   restartInFlight = true;
   restartAttempts += 1;
+  setCallDebug({
+    restartAttempts,
+    lastEvent: `ice-restart-scheduled:${reason}`,
+  });
   clearReconnectTimer();
 
   reconnectTimer = window.setTimeout(async () => {
@@ -158,8 +188,13 @@ const scheduleIceRestart = (reason) => {
         attempt: restartAttempts,
       });
       useCallStore.getState().setCallStatus("reconnecting");
+      setCallDebug({
+        signalingState: peerConnection.signalingState,
+        lastEvent: `ice-restart-offer-sent:${reason}`,
+      });
     } catch {
       // Retry is governed by max attempts and state callbacks.
+      setCallDebug({ lastEvent: "ice-restart-offer-failed" });
     } finally {
       restartInFlight = false;
     }
@@ -173,6 +208,15 @@ const createPeer = (token, remotePeerId) => {
   currentToken = token;
   currentRemotePeerId = remotePeerId;
   resetPeerTransientState();
+  setCallDebug({
+    connectionState: peer.connectionState,
+    iceConnectionState: peer.iceConnectionState,
+    iceGatheringState: peer.iceGatheringState,
+    signalingState: peer.signalingState,
+    usingTurn,
+    iceServerCount: rtcConfig.iceServers.length,
+    lastEvent: "peer-created",
+  });
 
   remoteMediaStream = new MediaStream();
   useCallStore.getState().setRemoteStream(remoteMediaStream);
@@ -188,9 +232,16 @@ const createPeer = (token, remotePeerId) => {
     const attachIncoming = () => {
       const tracks = event.streams?.[0]?.getTracks?.() || [event.track].filter(Boolean);
       tracks.forEach(addTrack);
+      const nextTracks = remoteMediaStream?.getTracks?.() || [];
       useCallStore.getState().setRemoteStream(remoteMediaStream);
       useCallStore.getState().setCallStatus("connected");
       restartAttempts = 0;
+      setCallDebug({
+        remoteVideoTracks: nextTracks.filter((track) => track.kind === "video").length,
+        remoteAudioTracks: nextTracks.filter((track) => track.kind === "audio").length,
+        restartAttempts: 0,
+        lastEvent: "remote-track-attached",
+      });
     };
 
     if (event.track && event.track.readyState !== "live") {
@@ -206,6 +257,15 @@ const createPeer = (token, remotePeerId) => {
         receiverId: remotePeerId,
         candidate: event.candidate,
       });
+      localCandidateCount += 1;
+      setCallDebug({
+        localCandidates: localCandidateCount,
+      });
+    } else {
+      setCallDebug({
+        iceGatheringState: peer.iceGatheringState,
+        lastEvent: "local-ice-gathering-complete",
+      });
     }
   };
 
@@ -216,36 +276,75 @@ const createPeer = (token, remotePeerId) => {
       restartAttempts = 0;
       restartInFlight = false;
       useCallStore.getState().setCallStatus("connected");
+      setCallDebug({
+        connectionState: state,
+        restartAttempts: 0,
+        lastEvent: "peer-connected",
+      });
       return;
     }
 
     if (state === "connecting") {
       useCallStore.getState().setCallStatus("connecting");
+      setCallDebug({
+        connectionState: state,
+        lastEvent: "peer-connecting",
+      });
       return;
     }
 
     if (state === "disconnected") {
       useCallStore.getState().setCallStatus("reconnecting");
+      setCallDebug({
+        connectionState: state,
+        lastEvent: "peer-disconnected",
+      });
       scheduleIceRestart("disconnected");
       return;
     }
 
     if (state === "failed") {
       useCallStore.getState().setCallStatus("reconnecting");
+      setCallDebug({
+        connectionState: state,
+        lastEvent: "peer-failed",
+      });
       scheduleIceRestart("failed");
       return;
     }
 
     if (state === "closed") {
       useCallStore.getState().setCallStatus("ended");
+      setCallDebug({
+        connectionState: state,
+        lastEvent: "peer-closed",
+      });
     }
   };
 
   peer.oniceconnectionstatechange = () => {
     const state = peer.iceConnectionState;
+    setCallDebug({
+      iceConnectionState: state,
+      lastEvent: `ice-state:${state}`,
+    });
     if (state === "failed") {
       scheduleIceRestart("ice-failed");
     }
+  };
+
+  peer.onicegatheringstatechange = () => {
+    setCallDebug({
+      iceGatheringState: peer.iceGatheringState,
+      lastEvent: `ice-gathering:${peer.iceGatheringState}`,
+    });
+  };
+
+  peer.onsignalingstatechange = () => {
+    setCallDebug({
+      signalingState: peer.signalingState,
+      lastEvent: `signaling:${peer.signalingState}`,
+    });
   };
 
   peerConnection = peer;
@@ -326,6 +425,9 @@ export const startOutgoingCall = async ({ token, receiverId, type }) => {
     const peer = createPeer(token, receiverId);
 
     localStream.getTracks().forEach((track) => peer.addTrack(track, localStream));
+    setCallDebug({
+      lastEvent: "local-media-attached",
+    });
     const offer = await peer.createOffer();
     await peer.setLocalDescription(offer);
 
@@ -337,6 +439,10 @@ export const startOutgoingCall = async ({ token, receiverId, type }) => {
       direction: "outgoing",
     });
     useCallStore.getState().setStreams({ localStream, remoteStream: remoteMediaStream });
+    setCallDebug({
+      signalingState: peer.signalingState,
+      lastEvent: "offer-sent",
+    });
 
     clearOutgoingCallTimeout();
     outgoingCallTimeout = window.setTimeout(() => {
@@ -353,6 +459,9 @@ export const startOutgoingCall = async ({ token, receiverId, type }) => {
   } catch (error) {
     const details = readMediaError(error);
     setCallNotice({ tone: "rose", ...details });
+    setCallDebug({
+      lastEvent: `media-error:${error?.name || "unknown"}`,
+    });
     closePeerConnection();
     throw error;
   }
@@ -390,9 +499,16 @@ export const acceptIncomingCall = async ({ token, incomingCall }) => {
       direction: "incoming",
     });
     useCallStore.getState().setStreams({ localStream, remoteStream: remoteMediaStream });
+    setCallDebug({
+      signalingState: peer.signalingState,
+      lastEvent: "answer-sent",
+    });
   } catch (error) {
     const details = readMediaError(error);
     setCallNotice({ tone: "rose", ...details });
+    setCallDebug({
+      lastEvent: `media-error:${error?.name || "unknown"}`,
+    });
     closePeerConnection();
     throw error;
   }
@@ -403,21 +519,41 @@ export const applyAnswer = async (answer) => {
   await applyRemoteDescription(answer);
   clearOutgoingCallTimeout();
   useCallStore.getState().setCallStatus("connecting");
+  setCallDebug({
+    signalingState: peerConnection.signalingState,
+    lastEvent: "answer-applied",
+  });
 };
 
 export const applyIceCandidate = async (candidate) => {
   if (!peerConnection || !candidate) return;
 
   const rtcCandidate = new RTCIceCandidate(candidate);
+  remoteCandidateCount += 1;
+  setCallDebug({
+    remoteCandidates: remoteCandidateCount,
+  });
   if (!peerConnection.remoteDescription) {
     pendingRemoteCandidates.push(rtcCandidate);
+    setCallDebug({
+      pendingCandidates: pendingRemoteCandidates.length,
+      lastEvent: "remote-candidate-queued",
+    });
     return;
   }
 
   try {
     await peerConnection.addIceCandidate(rtcCandidate);
+    setCallDebug({
+      pendingCandidates: pendingRemoteCandidates.length,
+      lastEvent: "remote-candidate-applied",
+    });
   } catch {
     pendingRemoteCandidates.push(rtcCandidate);
+    setCallDebug({
+      pendingCandidates: pendingRemoteCandidates.length,
+      lastEvent: "remote-candidate-requeued",
+    });
   }
 };
 
@@ -431,12 +567,20 @@ export const handleReconnectOffer = async ({ token, senderId, offer }) => {
   await peerConnection.setLocalDescription(answer);
   socket.emit("call_reconnect_answer", { receiverId: senderId, answer });
   useCallStore.getState().setCallStatus("reconnecting");
+  setCallDebug({
+    signalingState: peerConnection.signalingState,
+    lastEvent: "reconnect-answer-sent",
+  });
 };
 
 export const applyReconnectAnswer = async (answer) => {
   if (!peerConnection || !answer) return;
   await applyRemoteDescription(answer);
   useCallStore.getState().setCallStatus("connecting");
+  setCallDebug({
+    signalingState: peerConnection.signalingState,
+    lastEvent: "reconnect-answer-applied",
+  });
 };
 
 export const endCall = (token) => {
