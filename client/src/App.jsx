@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import HomePage from "./pages/HomePage";
 import AuthPage from "./pages/AuthPage";
 import DashboardPage from "./pages/DashboardPage";
+import ChatPage from "./pages/ChatPage";
 import AdminPage from "./pages/AdminPage";
 import ProfilePage from "./pages/ProfilePage";
 import SettingsPage from "./pages/SettingsPage";
@@ -29,7 +30,15 @@ function App() {
     <>
       <Routes>
         <Route path="/" element={<HomePage />} />
-        <Route path="/auth" element={token ? <Navigate to="/app" replace /> : <AuthPage />} />
+        <Route path="/auth" element={token ? <Navigate to="/chat" replace /> : <AuthPage />} />
+        <Route
+          path="/chat"
+          element={
+            <ProtectedRoute>
+              <ChatPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/app"
           element={

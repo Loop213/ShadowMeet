@@ -4,7 +4,6 @@ import AppShell from "../components/layout/AppShell";
 import ChatSidebar from "../components/chat/ChatSidebar";
 import MessageList from "../components/chat/MessageList";
 import Composer from "../components/chat/Composer";
-import RandomChatPanel from "../components/chat/RandomChatPanel";
 import DiscoverGrid from "../components/discover/DiscoverGrid";
 import ProfileCard from "../components/discover/ProfileCard";
 import { useChatStore } from "../store/useChatStore";
@@ -30,7 +29,6 @@ function DashboardPage() {
       <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="grid gap-4 xl:grid-cols-[22rem_1fr]">
         <ChatSidebar />
         <section className="grid gap-4">
-          <RandomChatPanel />
           <div className="glass-panel flex h-[calc(100vh-10rem)] flex-col rounded-[2rem] p-4">
             <div className="mb-4 flex items-center justify-between border-b border-line pb-4">
               <div>

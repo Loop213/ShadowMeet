@@ -1,4 +1,4 @@
-import { Home, LogOut, Settings, Shield, Sparkles, UserCircle2 } from "lucide-react";
+import { Home, LogOut, Settings, Shield, Sparkles, UserCircle2, Video } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuthStore } from "../../store/useAuthStore";
 import ThemeToggle from "../common/ThemeToggle";
@@ -8,6 +8,7 @@ function AppShell({ children }) {
   const user = useAuthStore((state) => state.user);
   const logout = useAuthStore((state) => state.logout);
   const navItems = [
+    { to: "/chat", label: "Chat", icon: Video },
     { to: "/app", label: "Discover", icon: Home },
     { to: "/profile", label: "Profile", icon: UserCircle2 },
     { to: "/settings", label: "Settings", icon: Settings },
