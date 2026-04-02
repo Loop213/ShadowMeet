@@ -20,6 +20,8 @@ export const useSocketEvents = () => {
   const setStrangerTyping = useRandomChatStore((state) => state.setStrangerTyping);
   const setOnlineCount = useRandomChatStore((state) => state.setOnlineCount);
   const setIncomingCall = useCallStore((state) => state.setIncomingCall);
+  const startCallSession = useCallStore((state) => state.startCallSession);
+  const setCallNotice = useCallStore((state) => state.setCallNotice);
   const clearCall = useCallStore((state) => state.clearCall);
   const { applyAnswer, applyIceCandidate } = useWebRTC();
 
@@ -50,10 +52,41 @@ export const useSocketEvents = () => {
       setMessageStatus(messageId, { status, seenBy });
     });
     socket.on("incoming_call", setIncomingCall);
+    socket.on("incoming-call", setIncomingCall);
+    socket.on("call_outgoing", ({ callId, receiverId, type }) => {
+      startCallSession({ callId, receiverId, type, status: "calling", direction: "outgoing" });
+    });
+    socket.on("call_unavailable", ({ message }) => {
+      clearCall();
+      setCallNotice({
+        tone: "amber",
+        title: "User not available",
+        message: message || "This user is offline or unavailable right now.",
+      });
+    });
+    socket.on("call_timeout", ({ message }) => {
+      clearCall();
+      setCallNotice({
+        tone: "amber",
+        title: "No response",
+        message: message || "The call was missed.",
+      });
+    });
     socket.on("accept_call", async ({ answer }) => {
       await applyAnswer(answer);
     });
+    socket.on("accept-call", async ({ answer }) => {
+      await applyAnswer(answer);
+    });
     socket.on("reject_call", clearCall);
+    socket.on("reject-call", () => {
+      clearCall();
+      setCallNotice({
+        tone: "rose",
+        title: "Call declined",
+        message: "The other user rejected your call.",
+      });
+    });
     socket.on("end_call", clearCall);
     socket.on("webrtc_ice_candidate", async ({ candidate }) => {
       await applyIceCandidate(candidate);
@@ -73,8 +106,14 @@ export const useSocketEvents = () => {
       socket.off("disconnect_partner", endRandomSession);
       socket.off("message_status");
       socket.off("incoming_call", setIncomingCall);
+      socket.off("incoming-call", setIncomingCall);
+      socket.off("call_outgoing");
+      socket.off("call_unavailable");
+      socket.off("call_timeout");
       socket.off("accept_call");
+      socket.off("accept-call");
       socket.off("reject_call", clearCall);
+      socket.off("reject-call");
       socket.off("end_call", clearCall);
       socket.off("webrtc_ice_candidate");
       socket.off("ice_candidate");
@@ -93,6 +132,8 @@ export const useSocketEvents = () => {
     setOnlineCount,
     setMessageStatus,
     setIncomingCall,
+    startCallSession,
+    setCallNotice,
     clearCall,
     applyAnswer,
     applyIceCandidate,

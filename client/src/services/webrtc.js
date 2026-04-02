@@ -22,6 +22,14 @@ const rtcConfig = {
 
 let peerConnection = null;
 let remoteMediaStream = null;
+let outgoingCallTimeout = null;
+
+const clearOutgoingCallTimeout = () => {
+  if (outgoingCallTimeout) {
+    window.clearTimeout(outgoingCallTimeout);
+    outgoingCallTimeout = null;
+  }
+};
 
 const createPeer = (token, remotePeerId) => {
   const socket = getSocket(token);
@@ -30,20 +38,35 @@ const createPeer = (token, remotePeerId) => {
   useCallStore.getState().setRemoteStream(remoteMediaStream);
 
   peer.ontrack = (event) => {
-    const inboundTracks = event.streams?.[0]?.getTracks?.() || [event.track].filter(Boolean);
+    const attachTracks = () => {
+      const inboundTracks = event.streams?.[0]?.getTracks?.() || [event.track].filter(Boolean);
 
-    inboundTracks.forEach((track) => {
-      const alreadyAdded = remoteMediaStream
-        ?.getTracks()
-        .some((existingTrack) => existingTrack.id === track.id);
+      inboundTracks.forEach((track) => {
+        const alreadyAdded = remoteMediaStream
+          ?.getTracks()
+          .some((existingTrack) => existingTrack.id === track.id);
 
-      if (!alreadyAdded) {
-        remoteMediaStream?.addTrack(track);
+        if (!alreadyAdded) {
+          remoteMediaStream?.addTrack(track);
+        }
+      });
+
+      useCallStore.getState().setRemoteStream(remoteMediaStream);
+      useCallStore.getState().setCallStatus("connected");
+    };
+
+    if (event.track) {
+      if (event.track.readyState === "live") {
+        attachTracks();
+      } else {
+        event.track.onunmute = () => {
+          attachTracks();
+        };
       }
-    });
+      return;
+    }
 
-    useCallStore.getState().setRemoteStream(remoteMediaStream);
-    useCallStore.getState().setCallStatus("connected");
+    attachTracks();
   };
 
   peer.onicecandidate = (event) => {
@@ -84,8 +107,20 @@ export const startOutgoingCall = async ({ token, receiverId, type }) => {
   await peer.setLocalDescription(offer);
 
   socket.emit("call_user", { receiverId, type, offer });
-  useCallStore.getState().startCallSession({ receiverId, type, status: "calling" });
+  useCallStore.getState().startCallSession({ receiverId, type, status: "calling", direction: "outgoing" });
   useCallStore.getState().setStreams({ localStream, remoteStream: remoteMediaStream });
+  clearOutgoingCallTimeout();
+  outgoingCallTimeout = window.setTimeout(() => {
+    const activeCall = useCallStore.getState().activeCall;
+    if (activeCall?.status === "calling" && activeCall?.receiverId === receiverId) {
+      endCall(token);
+      useCallStore.getState().setCallNotice({
+        tone: "amber",
+        title: "Call timed out",
+        message: "The other person did not answer in time.",
+      });
+    }
+  }, 30000);
 };
 
 export const acceptIncomingCall = async ({ token, incomingCall }) => {
@@ -110,6 +145,7 @@ export const acceptIncomingCall = async ({ token, incomingCall }) => {
     receiverId: incomingCall.caller._id,
     type: incomingCall.type,
     status: "connected",
+    direction: "incoming",
   });
   useCallStore.getState().setStreams({ localStream, remoteStream: remoteMediaStream });
 };
@@ -117,6 +153,7 @@ export const acceptIncomingCall = async ({ token, incomingCall }) => {
 export const applyAnswer = async (answer) => {
   if (peerConnection && answer) {
     await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    clearOutgoingCallTimeout();
     useCallStore.getState().setCallStatus("connecting");
   }
 };
@@ -129,6 +166,7 @@ export const applyIceCandidate = async (candidate) => {
 
 export const endCall = (token) => {
   const { activeCall, localStream, remoteStream, clearCall } = useCallStore.getState();
+  clearOutgoingCallTimeout();
 
   if (activeCall?.receiverId) {
     getSocket(token)?.emit("end_call", {

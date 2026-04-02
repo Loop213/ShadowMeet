@@ -9,6 +9,15 @@ import { moderateContent } from "../services/moderationService.js";
 
 const GLOBAL_ROOM = "global:room";
 const activeConnections = new Map();
+const pendingCallTimeouts = new Map();
+
+const clearPendingCallTimeout = (callId) => {
+  const timeoutId = pendingCallTimeouts.get(`${callId}`);
+  if (timeoutId) {
+    clearTimeout(timeoutId);
+    pendingCallTimeouts.delete(`${callId}`);
+  }
+};
 
 const bumpConnection = (userId, delta) => {
   const nextValue = Math.max(0, (activeConnections.get(userId) || 0) + delta);
@@ -320,12 +329,26 @@ export const initializeSocket = (httpServer, services = {}) => {
     });
 
     socket.on("call_user", async ({ receiverId, type, offer }) => {
+      if (!activeConnections.has(`${receiverId}`)) {
+        io.to(`user:${userId}`).emit("call_unavailable", {
+          receiverId,
+          message: "This user is offline or unavailable right now.",
+        });
+        return;
+      }
+
       await User.findByIdAndUpdate(userId, { lastActiveAt: new Date(), lastSeen: new Date() });
       const call = await Call.create({
         callerId: userId,
         receiverId,
         type,
         status: "ringing",
+      });
+
+      io.to(`user:${userId}`).emit("call_outgoing", {
+        callId: call._id,
+        receiverId,
+        type,
       });
 
       io.to(`user:${receiverId}`).emit("incoming_call", {
@@ -339,16 +362,52 @@ export const initializeSocket = (httpServer, services = {}) => {
         type,
         offer,
       });
+      io.to(`user:${receiverId}`).emit("incoming-call", {
+        callId: call._id,
+        from: {
+          _id: userId,
+          randomUsername: socket.user.randomUsername,
+        },
+        caller: {
+          _id: userId,
+          randomUsername: socket.user.randomUsername,
+          avatarUrl: socket.user.avatarUrl,
+          anonymousAvatar: socket.user.anonymousAvatar,
+        },
+        type,
+        offer,
+      });
+
+      const timeoutId = setTimeout(async () => {
+        const freshCall = await Call.findById(call._id);
+        if (!freshCall || freshCall.status !== "ringing") return;
+        await Call.findByIdAndUpdate(call._id, { status: "missed", endedAt: new Date() });
+        io.to(`user:${userId}`).emit("call_timeout", {
+          callId: call._id,
+          message: "The other user did not answer.",
+        });
+        io.to(`user:${receiverId}`).emit("call_timeout", {
+          callId: call._id,
+          message: "Missed call.",
+        });
+        pendingCallTimeouts.delete(`${call._id}`);
+      }, 30000);
+
+      pendingCallTimeouts.set(`${call._id}`, timeoutId);
     });
 
     socket.on("accept_call", async ({ callId, callerId, answer }) => {
+      clearPendingCallTimeout(callId);
       await Call.findByIdAndUpdate(callId, { status: "accepted", startedAt: new Date() });
       io.to(`user:${callerId}`).emit("accept_call", { callId, answer });
+      io.to(`user:${callerId}`).emit("accept-call", { callId, answer });
     });
 
     socket.on("reject_call", async ({ callId, callerId }) => {
+      clearPendingCallTimeout(callId);
       await Call.findByIdAndUpdate(callId, { status: "rejected", endedAt: new Date() });
       io.to(`user:${callerId}`).emit("reject_call", { callId });
+      io.to(`user:${callerId}`).emit("reject-call", { callId });
     });
 
     socket.on("offer", ({ receiverId, offer }) => {
@@ -368,6 +427,7 @@ export const initializeSocket = (httpServer, services = {}) => {
     });
 
     socket.on("end_call", async ({ callId, receiverId }) => {
+      clearPendingCallTimeout(callId);
       await Call.findByIdAndUpdate(callId, { status: "ended", endedAt: new Date() });
       io.to(`user:${receiverId}`).emit("end_call", { callId });
     });
