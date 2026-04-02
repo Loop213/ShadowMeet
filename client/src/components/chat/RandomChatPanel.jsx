@@ -98,6 +98,7 @@ function RandomChatPanel() {
   const socket = getSocket(token);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
   const hasRemoteVideo = Boolean(remoteStream?.getVideoTracks?.().length);
 
   const interests = interestsInput
@@ -114,6 +115,10 @@ function RandomChatPanel() {
     if (remoteVideoRef.current) {
       remoteVideoRef.current.srcObject = remoteStream || null;
       remoteVideoRef.current.play?.().catch(() => {});
+    }
+    if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = remoteStream || null;
+      remoteAudioRef.current.play?.().catch(() => {});
     }
 
     setAudioEnabled(localStream?.getAudioTracks().some((track) => track.enabled) ?? true);
@@ -440,6 +445,7 @@ function RandomChatPanel() {
             </div>
 
             <div className="relative min-h-[28rem] overflow-hidden rounded-[2rem] border border-white/10 bg-black">
+              <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
               <motion.video
                 key={partner?._id || "empty-remote"}
                 ref={remoteVideoRef}

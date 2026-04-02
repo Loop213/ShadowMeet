@@ -21,17 +21,28 @@ const rtcConfig = {
 };
 
 let peerConnection = null;
+let remoteMediaStream = null;
 
 const createPeer = (token, remotePeerId) => {
   const socket = getSocket(token);
   const peer = new RTCPeerConnection(rtcConfig);
+  remoteMediaStream = new MediaStream();
+  useCallStore.getState().setRemoteStream(remoteMediaStream);
 
   peer.ontrack = (event) => {
-    const inboundStream = event.streams?.[0];
-    if (!inboundStream) return;
+    const inboundTracks = event.streams?.[0]?.getTracks?.() || [event.track].filter(Boolean);
 
-    const remoteStream = new MediaStream(inboundStream.getTracks());
-    useCallStore.getState().setRemoteStream(remoteStream);
+    inboundTracks.forEach((track) => {
+      const alreadyAdded = remoteMediaStream
+        ?.getTracks()
+        .some((existingTrack) => existingTrack.id === track.id);
+
+      if (!alreadyAdded) {
+        remoteMediaStream?.addTrack(track);
+      }
+    });
+
+    useCallStore.getState().setRemoteStream(remoteMediaStream);
     useCallStore.getState().setCallStatus("connected");
   };
 
@@ -66,7 +77,6 @@ const getMediaStream = (type) =>
 export const startOutgoingCall = async ({ token, receiverId, type }) => {
   const socket = getSocket(token);
   const localStream = await getMediaStream(type);
-  const remoteStream = new MediaStream();
   const peer = createPeer(token, receiverId);
 
   localStream.getTracks().forEach((track) => peer.addTrack(track, localStream));
@@ -75,13 +85,12 @@ export const startOutgoingCall = async ({ token, receiverId, type }) => {
 
   socket.emit("call_user", { receiverId, type, offer });
   useCallStore.getState().startCallSession({ receiverId, type, status: "calling" });
-  useCallStore.getState().setStreams({ localStream, remoteStream });
+  useCallStore.getState().setStreams({ localStream, remoteStream: remoteMediaStream });
 };
 
 export const acceptIncomingCall = async ({ token, incomingCall }) => {
   const socket = getSocket(token);
   const localStream = await getMediaStream(incomingCall.type);
-  const remoteStream = new MediaStream();
   const peer = createPeer(token, incomingCall.caller._id);
 
   localStream.getTracks().forEach((track) => peer.addTrack(track, localStream));
@@ -102,7 +111,7 @@ export const acceptIncomingCall = async ({ token, incomingCall }) => {
     type: incomingCall.type,
     status: "connected",
   });
-  useCallStore.getState().setStreams({ localStream, remoteStream });
+  useCallStore.getState().setStreams({ localStream, remoteStream: remoteMediaStream });
 };
 
 export const applyAnswer = async (answer) => {
@@ -132,6 +141,7 @@ export const endCall = (token) => {
     peerConnection.close();
     peerConnection = null;
   }
+  remoteMediaStream = null;
 
   localStream?.getTracks().forEach((track) => track.stop());
   remoteStream?.getTracks().forEach((track) => track.stop());

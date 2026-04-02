@@ -8,6 +8,7 @@ function CallPanel() {
   const { endCall } = useWebRTC();
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
+  const remoteAudioRef = useRef(null);
   const [audioMuted, setAudioMuted] = useState(false);
   const [videoMuted, setVideoMuted] = useState(false);
 
@@ -19,6 +20,10 @@ function CallPanel() {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
       remoteVideoRef.current.play?.().catch(() => {});
+    }
+    if (remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream;
+      remoteAudioRef.current.play?.().catch(() => {});
     }
   }, [localStream, remoteStream]);
 
@@ -54,6 +59,7 @@ function CallPanel() {
         </button>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
+        <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
         <video
           ref={localVideoRef}
           autoPlay
