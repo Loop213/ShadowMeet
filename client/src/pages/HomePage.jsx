@@ -120,7 +120,7 @@ function HomePage() {
   }, []);
 
   return (
-    <div className="homepage-shell min-h-screen px-4 py-4 sm:px-6">
+    <div className="homepage-shell min-h-[100dvh] px-4 py-4 sm:px-6">
       <div className="mx-auto max-w-7xl space-y-8">
         <header className="glass-panel sticky top-4 z-40 rounded-[1.75rem] px-5 py-4 backdrop-blur-2xl">
           <div className="flex items-center justify-between gap-4">

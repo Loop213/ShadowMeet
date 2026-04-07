@@ -39,7 +39,7 @@ function AuthPage() {
   };
 
   return (
-    <div className="auth-shell flex min-h-screen items-center justify-center px-4 py-12">
+    <div className="auth-shell flex min-h-[100dvh] items-start justify-center px-4 py-6 sm:items-center sm:py-12">
       <div className="grid w-full max-w-6xl gap-8 lg:grid-cols-[1.1fr_0.9fr]">
         <motion.section
           initial={{ opacity: 0, x: -24 }}

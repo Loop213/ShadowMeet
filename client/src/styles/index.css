@@ -21,6 +21,7 @@ body {
     #030712;
   color: #e2e8f0;
   min-height: 100vh;
+  min-height: 100dvh;
   transition:
     background-color 200ms ease,
     color 200ms ease;
@@ -37,6 +38,7 @@ html.theme-light body {
 
 #root {
   min-height: 100vh;
+  min-height: 100dvh;
 }
 
 .glass-panel {

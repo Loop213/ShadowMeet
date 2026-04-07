@@ -45,8 +45,8 @@ function ChatPage() {
   }, [activeSession]);
 
   return (
-    <div className="min-h-screen overflow-hidden bg-mesh px-4 py-4 sm:px-6">
-      <div className="mx-auto flex min-h-[calc(100vh-2rem)] max-w-[96rem] flex-col gap-4">
+    <div className="min-h-[100dvh] overflow-x-hidden bg-mesh px-4 py-4 sm:px-6">
+      <div className="mx-auto flex min-h-[calc(100dvh-2rem)] max-w-[96rem] flex-col gap-4">
         <motion.header
           initial={{ opacity: 0, y: -12 }}
           animate={{ opacity: 1, y: 0 }}

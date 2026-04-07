@@ -29,7 +29,7 @@ function DashboardPage() {
       <motion.div initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} className="grid gap-4 xl:grid-cols-[22rem_1fr]">
         <ChatSidebar />
         <section className="grid gap-4">
-          <div className="glass-panel flex h-[calc(100vh-10rem)] flex-col rounded-[2rem] p-4">
+          <div className="glass-panel flex min-h-[24rem] flex-col rounded-[2rem] p-4 lg:h-[calc(100dvh-10rem)]">
             <div className="mb-4 flex items-center justify-between border-b border-line pb-4">
               <div>
                 <p className="text-xs uppercase tracking-[0.3em] text-slate-400">

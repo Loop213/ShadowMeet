@@ -6,7 +6,7 @@ function ChatSidebar() {
   const { selectedChat, setSelectedChat, discoverUsers, onlineUsers } = useChatStore();
 
   return (
-    <aside className="glass-panel flex h-[calc(100vh-10rem)] flex-col rounded-3xl p-4">
+    <aside className="glass-panel flex min-h-[18rem] flex-col rounded-3xl p-4 lg:h-[calc(100dvh-10rem)]">
       <button
         type="button"
         onClick={() => setSelectedChat({ scope: "global", peer: null })}
@@ -72,4 +72,3 @@ function ChatSidebar() {
 }
 
 export default ChatSidebar;
-

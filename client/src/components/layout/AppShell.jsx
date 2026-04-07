@@ -15,7 +15,7 @@ function AppShell({ children }) {
   ];
 
   return (
-    <div className="min-h-screen bg-mesh px-4 py-4 pb-24 sm:px-6">
+    <div className="min-h-[100dvh] bg-mesh px-4 py-4 pb-28 sm:px-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-4">
         <header className="glass-panel rounded-[2rem] px-5 py-4">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -30,7 +30,7 @@ function AppShell({ children }) {
               </p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <ThemeToggle />
               {navItems.map((item) => (
                 <Link
