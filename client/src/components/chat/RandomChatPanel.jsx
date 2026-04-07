@@ -127,6 +127,8 @@ function RandomChatPanel() {
   }, [localStream, remoteStream, mode]);
 
   const handleStart = () => {
+    endCall();
+    endSession();
     setMobileView("video");
     startSearching();
     socket.emit("find_partner", { interests, mode, genderFilter });

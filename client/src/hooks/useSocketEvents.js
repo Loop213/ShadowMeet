@@ -77,7 +77,19 @@ export const useSocketEvents = () => {
       });
     });
     socket.on("session_message", appendSessionMessage);
-    socket.on("disconnect_partner", endRandomSession);
+    const handlePartnerDisconnect = ({ reason } = {}) => {
+      clearCall();
+      endRandomSession();
+      setCallNotice({
+        tone: "amber",
+        title: "Partner left",
+        message:
+          reason === "skip"
+            ? "Your match skipped. Find a new partner."
+            : "Session ended. Start a new chat.",
+      });
+    };
+    socket.on("disconnect_partner", handlePartnerDisconnect);
     socket.on("message_status", ({ messageId, status, seenBy }) => {
       setMessageStatus(messageId, { status, seenBy });
     });
@@ -285,7 +297,7 @@ export const useSocketEvents = () => {
       socket.off("session_restored", restoreSession);
       socket.off("session_invalid");
       socket.off("session_message", appendSessionMessage);
-      socket.off("disconnect_partner", endRandomSession);
+      socket.off("disconnect_partner", handlePartnerDisconnect);
       socket.off("message_status");
       socket.off("incoming_call", handleIncomingCall);
       socket.off("incoming-call", handleIncomingCall);

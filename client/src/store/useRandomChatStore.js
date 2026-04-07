@@ -27,7 +27,17 @@ export const useRandomChatStore = create((set, get) => ({
       queueSize: queueSize ?? state.queueSize,
     })),
   setOnlineCount: (onlineCount) => set({ onlineCount }),
-  startSearching: () => set({ queueStatus: "searching", sessionMessages: [], activeSession: null, partner: null }),
+  startSearching: () =>
+    set(() => {
+      localStorage.removeItem("shadowmeet_active_session");
+      localStorage.removeItem("shadowmeet_partner");
+      return {
+        queueStatus: "searching",
+        sessionMessages: [],
+        activeSession: null,
+        partner: null,
+      };
+    }),
   setMatch: ({ sessionId, partner, mode, matchedInterests, startedAt }) =>
     set(() => {
       const activeSession = { sessionId, mode, matchedInterests, startedAt };
