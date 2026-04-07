@@ -13,6 +13,7 @@ export const useChatStore = create((set, get) => ({
   swipeHistory: {},
   sendState: "idle",
   setSelectedChat: (selectedChat) => set({ selectedChat }),
+  setOnlineUsers: (onlineUsers) => set({ onlineUsers }),
   setTypingState: (key, value) =>
     set((state) => ({ typingUsers: { ...state.typingUsers, [key]: value } })),
   setMessageStatus: (messageId, status) =>
@@ -62,19 +63,35 @@ export const useChatStore = create((set, get) => ({
         },
       };
     }),
-  updatePresence: ({ userId, isOnline, lastSeen }) =>
-    set((state) => ({
-      discoverUsers: state.discoverUsers.map((user) =>
-        user._id === userId ? { ...user, isOnline, lastSeen } : user
-      ),
-      onlineUsers: isOnline
-        ? state.onlineUsers.some((user) => user._id === userId)
-          ? state.onlineUsers.map((user) =>
-              user._id === userId ? { ...user, isOnline, lastSeen } : user
-            )
-          : state.onlineUsers
-        : state.onlineUsers.filter((user) => user._id !== userId),
-    })),
+  updatePresence: ({ userId, isOnline, lastSeen, status, user }) =>
+    set((state) => {
+      const presencePatch = {
+        _id: userId,
+        ...(user || {}),
+        isOnline,
+        status: status || (isOnline ? "online" : "offline"),
+        lastSeen,
+      };
+
+      const patchUser = (entry) => (entry._id === userId ? { ...entry, ...presencePatch } : entry);
+      const onlineUsers = isOnline
+        ? state.onlineUsers.some((entry) => entry._id === userId)
+          ? state.onlineUsers.map(patchUser)
+          : [presencePatch, ...state.onlineUsers]
+        : state.onlineUsers.filter((entry) => entry._id !== userId);
+
+      return {
+        discoverUsers: state.discoverUsers.map(patchUser),
+        onlineUsers,
+        selectedChat:
+          state.selectedChat.peer?._id === userId
+            ? {
+                ...state.selectedChat,
+                peer: { ...state.selectedChat.peer, ...presencePatch },
+              }
+            : state.selectedChat,
+      };
+    }),
   setDiscoverUsers: (discoverUsers) => set({ discoverUsers }),
   reactToMessage: async (messageId, emoji) => {
     const { data } = await api.post(`/messages/${messageId}/reactions`, { emoji });

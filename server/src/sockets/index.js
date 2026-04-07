@@ -44,6 +44,23 @@ const buildSessionPayload = (session, meId, partnerUser) => ({
   meId,
 });
 
+const buildPresencePayload = (user, isOnline) => ({
+  userId: `${user._id}`,
+  isOnline,
+  status: isOnline ? "online" : "offline",
+  lastSeen: new Date(),
+  user: {
+    _id: user._id,
+    randomUsername: user.randomUsername,
+    avatarUrl: user.avatarUrl || "",
+    anonymousAvatar: user.anonymousAvatar || user.avatarUrl || "",
+    interests: user.interests || [],
+    isOnline,
+    status: isOnline ? "online" : "offline",
+    lastSeen: new Date(),
+  },
+});
+
 const getPartnerId = (matchmakingService, userId) =>
   matchmakingService.getActiveSessionForUser(userId)?.partnerId || null;
 
@@ -130,7 +147,9 @@ export const initializeSocket = (httpServer, services = {}) => {
       lastActiveAt: new Date(),
     });
 
-    io.emit("presence:update", { userId, isOnline: true, lastSeen: new Date() });
+    const onlinePresence = buildPresencePayload(socket.user, true);
+    io.emit("presence:update", onlinePresence);
+    io.emit("user-connected", onlinePresence);
     io.emit("queue_status", { status: "updated", queueSize: matchmakingService.getQueueSize() });
 
     socket.emit("session_ready", { userId, randomUsername: socket.user.randomUsername });
@@ -399,8 +418,14 @@ export const initializeSocket = (httpServer, services = {}) => {
       });
     };
 
-    const handleCallUser = async ({ receiverId, type = "video", offer } = {}) => {
-      const receiver = `${receiverId || ""}`.trim();
+    const handleCallUser = async ({
+      receiverId,
+      toUserId,
+      type = "video",
+      offer,
+      chatScope = "private",
+    } = {}) => {
+      const receiver = `${receiverId || toUserId || ""}`.trim();
       const callType = type === "voice" ? "voice" : "video";
 
       if (!receiver || receiver === userId || !offer) {
@@ -408,15 +433,17 @@ export const initializeSocket = (httpServer, services = {}) => {
         return;
       }
 
-      const callerSession = matchmakingService.getActiveSessionForUser(userId);
-      const receiverSession = matchmakingService.getActiveSessionForUser(receiver);
-      if (!callerSession || callerSession.partnerId !== receiver) {
-        emitUnavailable(receiver, "You can call only your current matched user.");
-        return;
-      }
-      if (!receiverSession || receiverSession.partnerId !== userId) {
-        emitUnavailable(receiver, "This user is not available in your active session.");
-        return;
+      if (chatScope === "session") {
+        const callerSession = matchmakingService.getActiveSessionForUser(userId);
+        const receiverSession = matchmakingService.getActiveSessionForUser(receiver);
+        if (!callerSession || callerSession.partnerId !== receiver) {
+          emitUnavailable(receiver, "You can call only your current matched user.");
+          return;
+        }
+        if (!receiverSession || receiverSession.partnerId !== userId) {
+          emitUnavailable(receiver, "This user is not available in your active session.");
+          return;
+        }
       }
 
       const receiverUser = await User.findById(receiver).select("isBanned blockedUserIds");
@@ -465,6 +492,25 @@ export const initializeSocket = (httpServer, services = {}) => {
         },
         type: callType,
         offer,
+        chatScope,
+      });
+      io.to(`user:${receiver}`).emit("video-call-request", {
+        callId: call._id,
+        fromUserId: userId,
+        toUserId: receiver,
+        from: {
+          _id: userId,
+          randomUsername: socket.user.randomUsername,
+        },
+        caller: {
+          _id: userId,
+          randomUsername: socket.user.randomUsername,
+          avatarUrl: socket.user.avatarUrl,
+          anonymousAvatar: socket.user.anonymousAvatar,
+        },
+        type: callType,
+        offer,
+        chatScope,
       });
 
       const timeoutId = setTimeout(async () => {
@@ -494,6 +540,7 @@ export const initializeSocket = (httpServer, services = {}) => {
       clearPendingCallTimeout(callId);
       await Call.findByIdAndUpdate(callId, { status: "accepted", startedAt: new Date() });
       io.to(`user:${callerId}`).emit("accept_call", { callId, answer });
+      io.to(`user:${callerId}`).emit("call-accepted", { callId, answer });
     };
 
     const handleRejectCall = async ({ callId, callerId } = {}) => {
@@ -505,10 +552,19 @@ export const initializeSocket = (httpServer, services = {}) => {
       clearPendingCallTimeout(callId);
       await Call.findByIdAndUpdate(callId, { status: "rejected", endedAt: new Date() });
       io.to(`user:${callerId}`).emit("reject_call", { callId });
+      io.to(`user:${callerId}`).emit("call-rejected", { callId });
     };
 
     socket.on("call_user", handleCallUser);
     socket.on("call-user", handleCallUser);
+    socket.on("video-call-request", ({ toUserId, fromUserId, ...payload } = {}) =>
+      handleCallUser({
+        ...payload,
+        receiverId: toUserId,
+        fromUserId,
+        type: payload.type || "video",
+        chatScope: payload.chatScope || "private",
+      }));
     socket.on("accept_call", handleAcceptCall);
     socket.on("accept-call", handleAcceptCall);
     socket.on("reject_call", handleRejectCall);
@@ -586,7 +642,9 @@ export const initializeSocket = (httpServer, services = {}) => {
           lastSeen: new Date(),
           lastActiveAt: new Date(),
         });
-        io.emit("presence:update", { userId, isOnline: false, lastSeen: new Date() });
+        const offlinePresence = buildPresencePayload(socket.user, false);
+        io.emit("presence:update", offlinePresence);
+        io.emit("user-disconnected", offlinePresence);
         if (matchmakingService.getActiveSessionForUser(userId)) {
           matchmakingService.scheduleDisconnect(userId, async () => {
             await endSession({

@@ -25,12 +25,22 @@ export const getDiscoverUsers = asyncHandler(async (req, res) => {
 });
 
 export const getOnlineUsers = asyncHandler(async (_req, res) => {
-  const users = await User.find({ isOnline: true, isBanned: false })
-    .select("randomUsername avatarUrl bio lastSeen isOnline")
+  const users = await User.find({
+    _id: { $ne: _req.user._id },
+    isOnline: true,
+    isBanned: false,
+  })
+    .select("randomUsername avatarUrl anonymousAvatar bio lastSeen isOnline interests")
     .sort({ lastActiveAt: -1 })
-    .limit(50);
+    .limit(50)
+    .lean();
 
-  res.json({ users });
+  res.json({
+    users: users.map((user) => ({
+      ...user,
+      status: user.isOnline ? "online" : "offline",
+    })),
+  });
 });
 
 export const updateProfile = asyncHandler(async (req, res) => {

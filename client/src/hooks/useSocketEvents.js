@@ -53,6 +53,8 @@ export const useSocketEvents = () => {
       setTypingState(`${chatScope}:${senderId}`, isTyping);
     });
     socket.on("presence:update", updatePresence);
+    socket.on("user-connected", updatePresence);
+    socket.on("user-disconnected", updatePresence);
     socket.on("connect", () => {
       if (randomActiveSession?.sessionId) {
         socket.emit("sync_session", { sessionId: randomActiveSession.sessionId });
@@ -227,6 +229,7 @@ export const useSocketEvents = () => {
 
     socket.on("incoming_call", handleIncomingCall);
     socket.on("incoming-call", handleIncomingCall);
+    socket.on("video-call-request", handleIncomingCall);
     socket.on("call_outgoing", ({ callId, receiverId, type }) => {
       startCallSession({ callId, receiverId, type, status: "calling", direction: "outgoing" });
     });
@@ -248,6 +251,7 @@ export const useSocketEvents = () => {
     });
     socket.on("accept_call", handleAcceptCall);
     socket.on("accept-call", handleAcceptCall);
+    socket.on("call-accepted", handleAcceptCall);
     socket.on("reject_call", () => {
       clearCall();
       setCallNotice({
@@ -257,6 +261,14 @@ export const useSocketEvents = () => {
       });
     });
     socket.on("reject-call", () => {
+      clearCall();
+      setCallNotice({
+        tone: "rose",
+        title: "Call declined",
+        message: "The other user rejected your call.",
+      });
+    });
+    socket.on("call-rejected", () => {
       clearCall();
       setCallNotice({
         tone: "rose",
@@ -295,6 +307,8 @@ export const useSocketEvents = () => {
       socket.off("receive_message", appendMessage);
       socket.off("typing");
       socket.off("presence:update", updatePresence);
+      socket.off("user-connected", updatePresence);
+      socket.off("user-disconnected", updatePresence);
       socket.off("connect");
       socket.off("queue_status");
       socket.off("match_found", handleMatchFound);
@@ -305,13 +319,16 @@ export const useSocketEvents = () => {
       socket.off("message_status");
       socket.off("incoming_call", handleIncomingCall);
       socket.off("incoming-call", handleIncomingCall);
+      socket.off("video-call-request", handleIncomingCall);
       socket.off("call_outgoing");
       socket.off("call_unavailable");
       socket.off("call_timeout");
       socket.off("accept_call", handleAcceptCall);
       socket.off("accept-call", handleAcceptCall);
+      socket.off("call-accepted", handleAcceptCall);
       socket.off("reject_call");
       socket.off("reject-call");
+      socket.off("call-rejected");
       socket.off("end_call", clearCall);
       socket.off("webrtc_ice_candidate", handleIceCandidate);
       socket.off("ice_candidate", handleIceCandidate);

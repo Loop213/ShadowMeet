@@ -53,7 +53,7 @@ function Composer() {
   const handleCallStart = async (type) => {
     if (!selectedChat.peer?._id) return;
     try {
-      await startOutgoingCall({ receiverId: selectedChat.peer._id, type });
+      await startOutgoingCall({ receiverId: selectedChat.peer._id, type, chatScope: "private" });
     } catch {
       // Call notices are managed inside the WebRTC service.
     }

@@ -198,7 +198,7 @@ function RandomChatPanel() {
   const handleCallStart = async (type) => {
     if (!partner?._id) return;
     try {
-      await startOutgoingCall({ receiverId: partner._id, type });
+      await startOutgoingCall({ receiverId: partner._id, type, chatScope: "session" });
     } catch {
       // Call notices are managed in WebRTC service.
     }

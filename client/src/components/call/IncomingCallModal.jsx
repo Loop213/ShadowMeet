@@ -69,9 +69,15 @@ function IncomingCallModal() {
           <div className="mx-auto grid h-20 w-20 place-items-center rounded-full border border-pink-400/30 bg-pink-500/10 text-pink-200">
             <PhoneCall className="h-8 w-8" />
           </div>
-          <p className="mt-4 text-sm uppercase tracking-[0.3em] text-orange-300">Incoming {incomingCall.type}</p>
+          <p className="mt-4 text-sm uppercase tracking-[0.3em] text-orange-300">
+            Incoming {incomingCall.type === "voice" ? "voice call" : "video call"}
+          </p>
           <h2 className="mt-3 text-3xl font-bold text-white">{incomingCall.caller.randomUsername}</h2>
-          <p className="mt-2 text-sm text-slate-400">Anonymous call request waiting for your response.</p>
+          <p className="mt-2 text-sm text-slate-400">
+            {incomingCall.type === "voice"
+              ? `Incoming voice call from ${incomingCall.caller.randomUsername}.`
+              : `Incoming video call from ${incomingCall.caller.randomUsername}.`}
+          </p>
           <div className="mt-6 flex gap-3">
             <Button
               className="flex-1 shadow-pulse"

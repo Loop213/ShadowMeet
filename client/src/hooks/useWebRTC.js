@@ -12,8 +12,8 @@ import { useAuthStore } from "../store/useAuthStore";
 export const useWebRTC = () => {
   const token = useAuthStore((state) => state.token);
 
-  const startOutgoingCall = async ({ receiverId, type }) => {
-    await startOutgoingCallService({ token, receiverId, type });
+  const startOutgoingCall = async ({ receiverId, type, chatScope = "private" }) => {
+    await startOutgoingCallService({ token, receiverId, type, chatScope });
   };
 
   const acceptIncomingCall = async (incomingCall) => {

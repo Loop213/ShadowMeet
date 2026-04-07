@@ -453,7 +453,7 @@ const getMediaStream = async (type) => {
   }
 };
 
-export const startOutgoingCall = async ({ token, receiverId, type }) => {
+export const startOutgoingCall = async ({ token, receiverId, type, chatScope = "private" }) => {
   const socket = getSocket(token);
   if (!socket) {
     setCallNotice({
@@ -479,10 +479,11 @@ export const startOutgoingCall = async ({ token, receiverId, type }) => {
     const offer = await peer.createOffer();
     await peer.setLocalDescription(offer);
 
-    socket.emit("call_user", { receiverId, type, offer });
+    socket.emit("call_user", { receiverId, type, offer, chatScope });
     useCallStore.getState().startCallSession({
       receiverId,
       type,
+      chatScope,
       status: "calling",
       direction: "outgoing",
     });
@@ -543,6 +544,7 @@ export const acceptIncomingCall = async ({ token, incomingCall }) => {
       callId: incomingCall.callId,
       receiverId: incomingCall.caller._id,
       type: incomingCall.type,
+      chatScope: incomingCall.chatScope || "private",
       status: "connecting",
       direction: "incoming",
     });
