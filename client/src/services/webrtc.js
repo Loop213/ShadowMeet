@@ -15,6 +15,9 @@ const normalizeIceUrl = (value = "") => {
   return `turn:${trimmed}`;
 };
 
+const isPlaceholderTurnUrl = (value = "") =>
+  /(your-turn-host|turn\.example\.com|example\.com)/i.test(String(value || ""));
+
 const parseIceServers = () => {
   const defaults = [
     { urls: "stun:stun.l.google.com:19302" },
@@ -26,9 +29,11 @@ const parseIceServers = () => {
     .map((value) => normalizeIceUrl(value))
     .filter(Boolean);
 
-  if (turnUrls.length) {
+  const validTurnUrls = turnUrls.filter((value) => !isPlaceholderTurnUrl(value));
+
+  if (validTurnUrls.length) {
     defaults.push({
-      urls: turnUrls.length === 1 ? turnUrls[0] : turnUrls,
+      urls: validTurnUrls.length === 1 ? validTurnUrls[0] : validTurnUrls,
       username: turnUsername || undefined,
       credential: turnPassword || undefined,
     });
@@ -86,6 +91,10 @@ const maxRestartAttempts = 3;
 let localCandidateCount = 0;
 let remoteCandidateCount = 0;
 let turnHintShown = false;
+const hasPlaceholderTurnHost = (turnUrlRaw || "")
+  .split(",")
+  .map((value) => normalizeIceUrl(value))
+  .some((value) => isPlaceholderTurnUrl(value));
 
 const usingTurn = rtcConfig.iceServers.some((server) => {
   const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
@@ -173,8 +182,14 @@ const scheduleIceRestart = (reason) => {
     });
     setCallNotice({
       tone: "rose",
-      title: usingTurn ? "Connection unstable" : "TURN server required",
-      message: usingTurn
+      title: hasPlaceholderTurnHost
+        ? "TURN host placeholder detected"
+        : usingTurn
+          ? "Connection unstable"
+          : "TURN server required",
+      message: hasPlaceholderTurnHost
+        ? "VITE_TURN_URL still uses your-turn-host. Replace it with the real TURN server hostname."
+        : usingTurn
         ? "Network recovery failed. Please try calling again."
         : "Call could not recover across this network. Configure TURN credentials in frontend env.",
     });
@@ -312,12 +327,14 @@ const createPeer = (token, remotePeerId) => {
         connectionState: state,
         lastEvent: "peer-disconnected",
       });
-      if (!usingTurn && !turnHintShown) {
+      if ((!usingTurn || hasPlaceholderTurnHost) && !turnHintShown) {
         turnHintShown = true;
         setCallNotice({
           tone: "amber",
-          title: "Limited network relay",
-          message: "TURN server is not configured. Calls may reconnect forever on different networks.",
+          title: hasPlaceholderTurnHost ? "TURN host is placeholder" : "Limited network relay",
+          message: hasPlaceholderTurnHost
+            ? "Your frontend env still has `your-turn-host`. Replace it with the actual TURN host."
+            : "TURN server is not configured. Calls may reconnect forever on different networks.",
         });
       }
       scheduleIceRestart("disconnected");
@@ -330,12 +347,14 @@ const createPeer = (token, remotePeerId) => {
         connectionState: state,
         lastEvent: "peer-failed",
       });
-      if (!usingTurn && !turnHintShown) {
+      if ((!usingTurn || hasPlaceholderTurnHost) && !turnHintShown) {
         turnHintShown = true;
         setCallNotice({
           tone: "amber",
-          title: "TURN relay missing",
-          message: "Please set VITE_TURN_URL, VITE_TURN_USERNAME and VITE_TURN_PASSWORD.",
+          title: hasPlaceholderTurnHost ? "TURN host invalid" : "TURN relay missing",
+          message: hasPlaceholderTurnHost
+            ? "Please replace `your-turn-host` with the real TURN hostname in Vercel env."
+            : "Please set VITE_TURN_URL, VITE_TURN_USERNAME and VITE_TURN_PASSWORD.",
         });
       }
       scheduleIceRestart("failed");
