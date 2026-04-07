@@ -53,12 +53,29 @@ export const useSocketEvents = () => {
       setTypingState(`${chatScope}:${senderId}`, isTyping);
     });
     socket.on("presence:update", updatePresence);
+    socket.on("connect", () => {
+      if (randomActiveSession?.sessionId) {
+        socket.emit("sync_session", { sessionId: randomActiveSession.sessionId });
+      }
+    });
     socket.on("queue_status", ({ status, queueSize }) => {
       setQueueState({ queueStatus: status, queueSize });
       setOnlineCount(queueSize || 0);
     });
     socket.on("match_found", setMatch);
     socket.on("session_restored", restoreSession);
+    socket.on("session_invalid", ({ reason } = {}) => {
+      clearCall();
+      endRandomSession();
+      setCallNotice({
+        tone: "amber",
+        title: "Session expired",
+        message:
+          reason === "partner_offline"
+            ? "Your last match left the room. Please start a new chat."
+            : "Previous session is no longer active. Please find a new match.",
+      });
+    });
     socket.on("session_message", appendSessionMessage);
     socket.on("disconnect_partner", endRandomSession);
     socket.on("message_status", ({ messageId, status, seenBy }) => {
@@ -262,9 +279,11 @@ export const useSocketEvents = () => {
       socket.off("receive_message", appendMessage);
       socket.off("typing");
       socket.off("presence:update", updatePresence);
+      socket.off("connect");
       socket.off("queue_status");
       socket.off("match_found", setMatch);
       socket.off("session_restored", restoreSession);
+      socket.off("session_invalid");
       socket.off("session_message", appendSessionMessage);
       socket.off("disconnect_partner", endRandomSession);
       socket.off("message_status");

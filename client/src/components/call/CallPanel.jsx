@@ -70,6 +70,7 @@ function CallPanel() {
         <video
           ref={remoteVideoRef}
           autoPlay
+          muted
           playsInline
           className="aspect-video rounded-2xl bg-slate-900 object-cover"
         />

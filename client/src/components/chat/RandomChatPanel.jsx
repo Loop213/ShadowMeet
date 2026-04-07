@@ -468,6 +468,7 @@ function RandomChatPanel() {
                 key={partner?._id || "empty-remote"}
                 ref={remoteVideoRef}
                 autoPlay
+                muted
                 playsInline
                 className="remote-video h-full min-h-[28rem] w-full object-cover"
               />

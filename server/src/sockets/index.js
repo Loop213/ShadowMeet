@@ -47,6 +47,10 @@ const buildSessionPayload = (session, meId, partnerUser) => ({
 const getPartnerId = (matchmakingService, userId) =>
   matchmakingService.getActiveSessionForUser(userId)?.partnerId || null;
 
+const emitSessionInvalid = (socket, reason = "session_not_active") => {
+  socket.emit("session_invalid", { reason });
+};
+
 const endSession = async ({
   matchmakingService,
   userId,
@@ -141,6 +145,48 @@ export const initializeSocket = (httpServer, services = {}) => {
       }
     }
 
+    socket.on("sync_session", async ({ sessionId } = {}) => {
+      if (!sessionId) {
+        emitSessionInvalid(socket, "missing_session");
+        return;
+      }
+
+      const session = await ChatSession.findOne({
+        _id: sessionId,
+        status: "active",
+        $or: [{ user1: socket.user._id }, { user2: socket.user._id }],
+      });
+
+      if (!session) {
+        emitSessionInvalid(socket, "session_not_found");
+        return;
+      }
+
+      const partnerId = `${session.user1}` === userId ? `${session.user2}` : `${session.user1}`;
+      if (!partnerId || !activeConnections.has(partnerId)) {
+        await ChatSession.findByIdAndUpdate(session._id, {
+          status: "disconnected",
+          endTime: new Date(),
+          endedBy: socket.user._id,
+          endedReason: "partner_offline",
+        });
+        emitSessionInvalid(socket, "partner_offline");
+        return;
+      }
+
+      matchmakingService.registerSession(session._id, userId, partnerId);
+      const partnerUser = await User.findById(partnerId).select(
+        "randomUsername anonymousAvatar interests gender avatarUrl"
+      );
+
+      if (!partnerUser) {
+        emitSessionInvalid(socket, "partner_not_found");
+        return;
+      }
+
+      socket.emit("session_restored", buildSessionPayload(session, userId, partnerUser));
+    });
+
     socket.on("find_partner", async ({ interests = [], mode = "text", genderFilter = "any" } = {}) => {
       const existing = matchmakingService.getActiveSessionForUser(userId);
       if (existing) return;
@@ -203,6 +249,10 @@ export const initializeSocket = (httpServer, services = {}) => {
     socket.on("typing", ({ receiverId = null, chatScope = "global", isTyping }) => {
       if (chatScope === "session") {
         const partnerId = getPartnerId(matchmakingService, userId);
+        if (!partnerId) {
+          emitSessionInvalid(socket, "session_not_active");
+          return;
+        }
         if (partnerId) {
           io.to(`user:${partnerId}`).emit("typing", {
             senderId: userId,
@@ -235,6 +285,10 @@ export const initializeSocket = (httpServer, services = {}) => {
 
       const actualReceiverId =
         chatScope === "session" ? getPartnerId(matchmakingService, userId) : receiverId;
+      if (chatScope === "session" && !actualReceiverId) {
+        emitSessionInvalid(socket, "session_not_active");
+        return;
+      }
       const moderation = moderateContent(content);
 
       await User.findByIdAndUpdate(userId, { lastActiveAt: new Date(), lastSeen: new Date() });
