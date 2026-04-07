@@ -283,10 +283,20 @@ export const initializeSocket = (httpServer, services = {}) => {
       } = payload;
       if (!content) return;
 
+      const activeSessionForUser =
+        chatScope === "session" ? matchmakingService.getActiveSessionForUser(userId) : null;
       const actualReceiverId =
-        chatScope === "session" ? getPartnerId(matchmakingService, userId) : receiverId;
+        chatScope === "session" ? activeSessionForUser?.partnerId || null : receiverId;
       if (chatScope === "session" && !actualReceiverId) {
         emitSessionInvalid(socket, "session_not_active");
+        return;
+      }
+      if (
+        chatScope === "session" &&
+        sessionId &&
+        `${activeSessionForUser?.sessionId || ""}` !== `${sessionId}`
+      ) {
+        emitSessionInvalid(socket, "session_mismatch");
         return;
       }
       const moderation = moderateContent(content);
@@ -398,6 +408,17 @@ export const initializeSocket = (httpServer, services = {}) => {
         return;
       }
 
+      const callerSession = matchmakingService.getActiveSessionForUser(userId);
+      const receiverSession = matchmakingService.getActiveSessionForUser(receiver);
+      if (!callerSession || callerSession.partnerId !== receiver) {
+        emitUnavailable(receiver, "You can call only your current matched user.");
+        return;
+      }
+      if (!receiverSession || receiverSession.partnerId !== userId) {
+        emitUnavailable(receiver, "This user is not available in your active session.");
+        return;
+      }
+
       const receiverUser = await User.findById(receiver).select("isBanned blockedUserIds");
       if (!receiverUser || receiverUser.isBanned) {
         emitUnavailable(receiver, "User not found.");
@@ -466,6 +487,10 @@ export const initializeSocket = (httpServer, services = {}) => {
 
     const handleAcceptCall = async ({ callId, callerId, answer } = {}) => {
       if (!callId || !callerId || !answer) return;
+      const call = await Call.findById(callId);
+      if (!call) return;
+      if (`${call.receiverId}` !== userId || `${call.callerId}` !== `${callerId}`) return;
+      if (call.status !== "ringing") return;
       clearPendingCallTimeout(callId);
       await Call.findByIdAndUpdate(callId, { status: "accepted", startedAt: new Date() });
       io.to(`user:${callerId}`).emit("accept_call", { callId, answer });
@@ -473,6 +498,10 @@ export const initializeSocket = (httpServer, services = {}) => {
 
     const handleRejectCall = async ({ callId, callerId } = {}) => {
       if (!callId || !callerId) return;
+      const call = await Call.findById(callId);
+      if (!call) return;
+      if (`${call.receiverId}` !== userId || `${call.callerId}` !== `${callerId}`) return;
+      if (call.status !== "ringing") return;
       clearPendingCallTimeout(callId);
       await Call.findByIdAndUpdate(callId, { status: "rejected", endedAt: new Date() });
       io.to(`user:${callerId}`).emit("reject_call", { callId });

@@ -62,7 +62,11 @@ export const useSocketEvents = () => {
       setQueueState({ queueStatus: status, queueSize });
       setOnlineCount(queueSize || 0);
     });
-    socket.on("match_found", setMatch);
+    const handleMatchFound = (payload) => {
+      clearCall();
+      setMatch(payload);
+    };
+    socket.on("match_found", handleMatchFound);
     socket.on("session_restored", restoreSession);
     socket.on("session_invalid", ({ reason } = {}) => {
       clearCall();
@@ -293,7 +297,7 @@ export const useSocketEvents = () => {
       socket.off("presence:update", updatePresence);
       socket.off("connect");
       socket.off("queue_status");
-      socket.off("match_found", setMatch);
+      socket.off("match_found", handleMatchFound);
       socket.off("session_restored", restoreSession);
       socket.off("session_invalid");
       socket.off("session_message", appendSessionMessage);

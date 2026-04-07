@@ -127,6 +127,9 @@ function RandomChatPanel() {
   }, [localStream, remoteStream, mode]);
 
   const handleStart = () => {
+    if (activeSession?.sessionId) {
+      socket.emit("disconnect_partner");
+    }
     endCall();
     endSession();
     setMobileView("video");
