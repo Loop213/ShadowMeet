@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { getSocket } from "../services/socket";
 import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
@@ -19,16 +19,24 @@ export const useSocketEvents = () => {
   const endRandomSession = useRandomChatStore((state) => state.endSession);
   const setStrangerTyping = useRandomChatStore((state) => state.setStrangerTyping);
   const setOnlineCount = useRandomChatStore((state) => state.setOnlineCount);
+  const randomActiveSession = useRandomChatStore((state) => state.activeSession);
+  const randomPartner = useRandomChatStore((state) => state.partner);
+  const randomMode = useRandomChatStore((state) => state.mode);
   const setIncomingCall = useCallStore((state) => state.setIncomingCall);
   const startCallSession = useCallStore((state) => state.startCallSession);
   const setCallNotice = useCallStore((state) => state.setCallNotice);
+  const activeCall = useCallStore((state) => state.activeCall);
   const clearCall = useCallStore((state) => state.clearCall);
   const {
+    acceptIncomingCall,
     applyAnswer,
     applyIceCandidate,
     handleReconnectOffer,
     applyReconnectAnswer,
   } = useWebRTC();
+  const lastIncomingCallRef = useRef({ callId: null, timestamp: 0 });
+  const lastAcceptedAnswerRef = useRef({ key: null, timestamp: 0 });
+  const seenCandidateRef = useRef(new Map());
 
   useEffect(() => {
     if (!token) return undefined;
@@ -56,8 +64,136 @@ export const useSocketEvents = () => {
     socket.on("message_status", ({ messageId, status, seenBy }) => {
       setMessageStatus(messageId, { status, seenBy });
     });
-    socket.on("incoming_call", setIncomingCall);
-    socket.on("incoming-call", setIncomingCall);
+
+    const normalizeIncomingCall = (payload = {}) => {
+      const caller = payload.caller || payload.from || {};
+      const callerId = `${caller._id || payload.callerId || payload.senderId || ""}`.trim();
+      if (!callerId) return null;
+
+      return {
+        ...payload,
+        callId: payload.callId || `${callerId}:${payload.type || "video"}`,
+        caller: {
+          _id: callerId,
+          randomUsername: caller.randomUsername || "Stranger",
+          avatarUrl: caller.avatarUrl,
+          anonymousAvatar: caller.anonymousAvatar,
+        },
+        type: payload.type === "voice" ? "voice" : "video",
+      };
+    };
+
+    const handleIncomingCall = async (payload) => {
+      const incomingCall = normalizeIncomingCall(payload);
+      if (!incomingCall) return;
+
+      const now = Date.now();
+      if (
+        lastIncomingCallRef.current.callId === incomingCall.callId &&
+        now - lastIncomingCallRef.current.timestamp < 1600
+      ) {
+        return;
+      }
+      lastIncomingCallRef.current = { callId: incomingCall.callId, timestamp: now };
+
+      if (
+        activeCall?.receiverId &&
+        activeCall.receiverId !== incomingCall.caller._id &&
+        activeCall.status !== "ended"
+      ) {
+        socket.emit("reject_call", {
+          callId: incomingCall.callId,
+          callerId: incomingCall.caller._id,
+        });
+        return;
+      }
+
+      if (
+        activeCall?.receiverId === incomingCall.caller._id &&
+        ["connected", "connecting", "reconnecting"].includes(activeCall.status)
+      ) {
+        return;
+      }
+
+      const isCurrentRandomPartner =
+        Boolean(randomActiveSession?.sessionId) && randomPartner?._id === incomingCall.caller._id;
+      const shouldAutoAccept =
+        isCurrentRandomPartner && (randomMode === "video" || incomingCall.type === "video");
+
+      if (shouldAutoAccept) {
+        try {
+          await acceptIncomingCall(incomingCall);
+          return;
+        } catch {
+          setCallNotice({
+            tone: "rose",
+            title: "Could not join video call",
+            message: "Camera or microphone permission is blocked on this device.",
+          });
+          return;
+        }
+      }
+
+      setIncomingCall(incomingCall);
+    };
+
+    const handleAcceptCall = async ({ answer, callId } = {}) => {
+      if (!answer) return;
+      const key = `${callId || "no-call"}:${answer.type || ""}:${(answer.sdp || "").slice(0, 48)}`;
+      const now = Date.now();
+      if (
+        lastAcceptedAnswerRef.current.key === key &&
+        now - lastAcceptedAnswerRef.current.timestamp < 1600
+      ) {
+        return;
+      }
+      lastAcceptedAnswerRef.current = { key, timestamp: now };
+
+      try {
+        await applyAnswer(answer);
+      } catch {
+        setCallNotice({
+          tone: "amber",
+          title: "Call handshake delayed",
+          message: "Re-syncing call negotiation. Please wait a moment.",
+        });
+      }
+    };
+
+    const handleIceCandidate = async ({ candidate } = {}) => {
+      if (!candidate) return;
+
+      const candidateKey = [
+        candidate.candidate,
+        candidate.sdpMid,
+        candidate.sdpMLineIndex,
+        candidate.usernameFragment,
+      ]
+        .filter(Boolean)
+        .join("|");
+
+      if (!candidateKey) {
+        await applyIceCandidate(candidate);
+        return;
+      }
+
+      const now = Date.now();
+      const lastSeenAt = seenCandidateRef.current.get(candidateKey);
+      if (lastSeenAt && now - lastSeenAt < 5000) return;
+      seenCandidateRef.current.set(candidateKey, now);
+
+      if (seenCandidateRef.current.size > 160) {
+        const expiry = now - 6000;
+        for (const [key, timestamp] of seenCandidateRef.current.entries()) {
+          if (timestamp < expiry) seenCandidateRef.current.delete(key);
+        }
+      }
+
+      await applyIceCandidate(candidate);
+    };
+
+    socket.on("incoming_call", handleIncomingCall);
+    socket.on("incoming-call", handleIncomingCall);
     socket.on("call_outgoing", ({ callId, receiverId, type }) => {
       startCallSession({ callId, receiverId, type, status: "calling", direction: "outgoing" });
     });
@@ -77,12 +213,8 @@ export const useSocketEvents = () => {
         message: message || "The call was missed.",
       });
     });
-    socket.on("accept_call", async ({ answer }) => {
-      await applyAnswer(answer);
-    });
-    socket.on("accept-call", async ({ answer }) => {
-      await applyAnswer(answer);
-    });
+    socket.on("accept_call", handleAcceptCall);
+    socket.on("accept-call", handleAcceptCall);
     socket.on("reject_call", () => {
       clearCall();
       setCallNotice({
@@ -100,15 +232,9 @@ export const useSocketEvents = () => {
       });
     });
     socket.on("end_call", clearCall);
-    socket.on("webrtc_ice_candidate", async ({ candidate }) => {
-      await applyIceCandidate(candidate);
-    });
-    socket.on("ice_candidate", async ({ candidate }) => {
-      await applyIceCandidate(candidate);
-    });
-    socket.on("ice-candidate", async ({ candidate }) => {
-      await applyIceCandidate(candidate);
-    });
+    socket.on("webrtc_ice_candidate", handleIceCandidate);
+    socket.on("ice_candidate", handleIceCandidate);
+    socket.on("ice-candidate", handleIceCandidate);
     socket.on("call_reconnect_offer", async ({ senderId, offer }) => {
       try {
         await handleReconnectOffer({ senderId, offer });
@@ -142,19 +268,19 @@ export const useSocketEvents = () => {
       socket.off("session_message", appendSessionMessage);
       socket.off("disconnect_partner", endRandomSession);
       socket.off("message_status");
-      socket.off("incoming_call", setIncomingCall);
-      socket.off("incoming-call", setIncomingCall);
+      socket.off("incoming_call", handleIncomingCall);
+      socket.off("incoming-call", handleIncomingCall);
       socket.off("call_outgoing");
       socket.off("call_unavailable");
       socket.off("call_timeout");
-      socket.off("accept_call");
-      socket.off("accept-call");
+      socket.off("accept_call", handleAcceptCall);
+      socket.off("accept-call", handleAcceptCall);
       socket.off("reject_call");
       socket.off("reject-call");
       socket.off("end_call", clearCall);
-      socket.off("webrtc_ice_candidate");
-      socket.off("ice_candidate");
-      socket.off("ice-candidate");
+      socket.off("webrtc_ice_candidate", handleIceCandidate);
+      socket.off("ice_candidate", handleIceCandidate);
+      socket.off("ice-candidate", handleIceCandidate);
       socket.off("call_reconnect_offer");
       socket.off("call_reconnect_answer");
     };
@@ -170,11 +296,16 @@ export const useSocketEvents = () => {
     endRandomSession,
     setStrangerTyping,
     setOnlineCount,
+    randomActiveSession,
+    randomPartner,
+    randomMode,
     setMessageStatus,
     setIncomingCall,
     startCallSession,
     setCallNotice,
+    activeCall,
     clearCall,
+    acceptIncomingCall,
     applyAnswer,
     applyIceCandidate,
     handleReconnectOffer,

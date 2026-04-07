@@ -391,21 +391,6 @@ export const initializeSocket = (httpServer, services = {}) => {
         type: callType,
         offer,
       });
-      io.to(`user:${receiver}`).emit("incoming-call", {
-        callId: call._id,
-        from: {
-          _id: userId,
-          randomUsername: socket.user.randomUsername,
-        },
-        caller: {
-          _id: userId,
-          randomUsername: socket.user.randomUsername,
-          avatarUrl: socket.user.avatarUrl,
-          anonymousAvatar: socket.user.anonymousAvatar,
-        },
-        type: callType,
-        offer,
-      });
 
       const timeoutId = setTimeout(async () => {
         const freshCall = await Call.findById(call._id);
@@ -430,7 +415,6 @@ export const initializeSocket = (httpServer, services = {}) => {
       clearPendingCallTimeout(callId);
       await Call.findByIdAndUpdate(callId, { status: "accepted", startedAt: new Date() });
       io.to(`user:${callerId}`).emit("accept_call", { callId, answer });
-      io.to(`user:${callerId}`).emit("accept-call", { callId, answer });
     };
 
     const handleRejectCall = async ({ callId, callerId } = {}) => {
@@ -438,7 +422,6 @@ export const initializeSocket = (httpServer, services = {}) => {
       clearPendingCallTimeout(callId);
       await Call.findByIdAndUpdate(callId, { status: "rejected", endedAt: new Date() });
       io.to(`user:${callerId}`).emit("reject_call", { callId });
-      io.to(`user:${callerId}`).emit("reject-call", { callId });
     };
 
     socket.on("call_user", handleCallUser);
@@ -459,8 +442,6 @@ export const initializeSocket = (httpServer, services = {}) => {
     const forwardIceCandidate = ({ receiverId, candidate } = {}) => {
       if (!receiverId || !candidate) return;
       io.to(`user:${receiverId}`).emit("webrtc_ice_candidate", { senderId: userId, candidate });
-      io.to(`user:${receiverId}`).emit("ice_candidate", { senderId: userId, candidate });
-      io.to(`user:${receiverId}`).emit("ice-candidate", { senderId: userId, candidate });
     };
 
     socket.on("webrtc_ice_candidate", forwardIceCandidate);

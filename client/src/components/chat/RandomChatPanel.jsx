@@ -199,6 +199,10 @@ function RandomChatPanel() {
     }
   };
 
+  const isCallBusy = Boolean(
+    activeCall && ["calling", "connecting", "connected", "reconnecting"].includes(activeCall.status)
+  );
+
   const connectionLabel = activeCall?.status === "connected"
     ? "Live now"
     : activeCall?.status === "calling" || activeCall?.status === "connecting"
@@ -549,16 +553,18 @@ function RandomChatPanel() {
                     <button
                       type="button"
                       onClick={() => handleCallStart("voice")}
-                      className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-medium text-white"
+                      disabled={isCallBusy}
+                      className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-45"
                     >
-                      Voice Call
+                      {isCallBusy ? "Call Live" : "Voice Call"}
                     </button>
                     <button
                       type="button"
                       onClick={() => handleCallStart("video")}
-                      className="rounded-2xl bg-gradient-to-r from-pink-500 to-fuchsia-500 px-4 py-3 text-sm font-semibold text-white"
+                      disabled={isCallBusy}
+                      className="rounded-2xl bg-gradient-to-r from-pink-500 to-fuchsia-500 px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-45"
                     >
-                      Start Video
+                      {isCallBusy ? "Video Live" : "Start Video"}
                     </button>
                   </div>
                 ) : null}
