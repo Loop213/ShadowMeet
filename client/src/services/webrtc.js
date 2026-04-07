@@ -6,6 +6,15 @@ const turnUsername = import.meta.env.VITE_TURN_USERNAME;
 const turnPassword = import.meta.env.VITE_TURN_PASSWORD;
 const customIceServersRaw = import.meta.env.VITE_ICE_SERVERS_JSON;
 
+const normalizeIceUrl = (value = "") => {
+  const trimmed = String(value || "").trim();
+  if (!trimmed) return "";
+
+  if (/^(stun|stuns|turn|turns):/i.test(trimmed)) return trimmed;
+  if (/google\.com:19302/i.test(trimmed)) return `stun:${trimmed}`;
+  return `turn:${trimmed}`;
+};
+
 const parseIceServers = () => {
   const defaults = [
     { urls: "stun:stun.l.google.com:19302" },
@@ -14,7 +23,7 @@ const parseIceServers = () => {
 
   const turnUrls = (turnUrlRaw || "")
     .split(",")
-    .map((value) => value.trim())
+    .map((value) => normalizeIceUrl(value))
     .filter(Boolean);
 
   if (turnUrls.length) {
@@ -76,6 +85,7 @@ let restartAttempts = 0;
 const maxRestartAttempts = 3;
 let localCandidateCount = 0;
 let remoteCandidateCount = 0;
+let turnHintShown = false;
 
 const usingTurn = rtcConfig.iceServers.some((server) => {
   const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
@@ -110,6 +120,7 @@ const resetPeerTransientState = () => {
   restartAttempts = 0;
   localCandidateCount = 0;
   remoteCandidateCount = 0;
+  turnHintShown = false;
   clearReconnectTimer();
   setCallDebug({
     pendingCandidates: 0,
@@ -162,8 +173,10 @@ const scheduleIceRestart = (reason) => {
     });
     setCallNotice({
       tone: "rose",
-      title: "Connection unstable",
-      message: "Network recovery failed. Please try calling again.",
+      title: usingTurn ? "Connection unstable" : "TURN server required",
+      message: usingTurn
+        ? "Network recovery failed. Please try calling again."
+        : "Call could not recover across this network. Configure TURN credentials in frontend env.",
     });
     return;
   }
@@ -299,6 +312,14 @@ const createPeer = (token, remotePeerId) => {
         connectionState: state,
         lastEvent: "peer-disconnected",
       });
+      if (!usingTurn && !turnHintShown) {
+        turnHintShown = true;
+        setCallNotice({
+          tone: "amber",
+          title: "Limited network relay",
+          message: "TURN server is not configured. Calls may reconnect forever on different networks.",
+        });
+      }
       scheduleIceRestart("disconnected");
       return;
     }
@@ -309,6 +330,14 @@ const createPeer = (token, remotePeerId) => {
         connectionState: state,
         lastEvent: "peer-failed",
       });
+      if (!usingTurn && !turnHintShown) {
+        turnHintShown = true;
+        setCallNotice({
+          tone: "amber",
+          title: "TURN relay missing",
+          message: "Please set VITE_TURN_URL, VITE_TURN_USERNAME and VITE_TURN_PASSWORD.",
+        });
+      }
       scheduleIceRestart("failed");
       return;
     }
