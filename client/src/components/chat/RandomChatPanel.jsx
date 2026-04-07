@@ -467,7 +467,7 @@ function RandomChatPanel() {
               </span>
             </div>
 
-            <div className="relative min-h-[28rem] overflow-hidden rounded-[2rem] border border-white/10 bg-black">
+            <div className="relative aspect-[4/3] min-h-[24rem] overflow-hidden rounded-[2rem] border border-white/10 bg-black lg:min-h-[30rem] xl:aspect-[16/10]">
               <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
               <motion.video
                 key={partner?._id || "empty-remote"}
@@ -475,7 +475,7 @@ function RandomChatPanel() {
                 autoPlay
                 muted
                 playsInline
-                className="remote-video h-full min-h-[28rem] w-full object-cover"
+                className="remote-video h-full w-full bg-black object-contain"
               />
 
               {!hasRemoteVideo || !activeCall ? (
@@ -498,7 +498,7 @@ function RandomChatPanel() {
                 </div>
               ) : null}
 
-              <div className="absolute bottom-4 right-4 h-36 w-28 overflow-hidden rounded-[1.5rem] border border-white/15 bg-slate-950 shadow-2xl shadow-black/40">
+              <div className="absolute bottom-4 right-4 h-32 w-24 overflow-hidden rounded-[1.5rem] border border-white/15 bg-slate-950 shadow-2xl shadow-black/40 sm:h-36 sm:w-28">
                 <video
                   ref={localVideoRef}
                   autoPlay

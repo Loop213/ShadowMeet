@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useEffect } from "react";
 import HomePage from "./pages/HomePage";
 import AuthPage from "./pages/AuthPage";
@@ -16,9 +16,11 @@ import { useThemeStore } from "./store/useThemeStore";
 import { useSocketEvents } from "./hooks/useSocketEvents";
 
 function App() {
+  const location = useLocation();
   const token = useAuthStore((state) => state.token);
   const bootstrap = useAuthStore((state) => state.bootstrap);
   const initializeTheme = useThemeStore((state) => state.initializeTheme);
+  const showFloatingCallPanel = location.pathname !== "/chat";
 
   useSocketEvents();
 
@@ -74,7 +76,7 @@ function App() {
         />
       </Routes>
       <IncomingCallModal />
-      <CallPanel />
+      {showFloatingCallPanel ? <CallPanel /> : null}
       <CallNotice />
     </>
   );
